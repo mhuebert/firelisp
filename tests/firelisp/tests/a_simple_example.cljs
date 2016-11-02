@@ -56,7 +56,7 @@
 
 (defcard
   (mixed
-    "FireLisp is designed to help you write Firebase rules faster and more securely, from Clojure(Script). Let's begin by requiring the `firelisp.rules` namespace:"
+    "[FireLisp](https://www.github.com/mhuebert/firelisp) is designed to help you write Firebase rules faster and more securely, from Clojure(Script). Let's begin by requiring the `firelisp.rules` namespace:"
     #_(html [:h1 {:style {:font-size  50
                           :text-align "center"}} "THIS IS ALPHA SOFTWARE"])
 
@@ -302,7 +302,7 @@
 
 (defcard Database
   (mixed
-    "For ease of development and testing, FireLisp exposes a `db` namespace which you can use to write and test rules. We rely on [targaryen]() for testing, **which is not yet perfect**, so please do not rely on these tests alone for production cases (yet).
+    "For ease of development and testing, FireLisp exposes a `db` namespace which you can use to write and test rules. We rely on [targaryen](https://github.com/goldibex/targaryen) for testing, **which is not yet perfect**, so please do not rely on these tests alone for production cases (yet).
 
     Usage:"
 

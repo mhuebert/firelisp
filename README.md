@@ -1,5 +1,7 @@
 # FireLisp
 
+Checkout the live devcards-powered [tests]() and [intro]().
+
 ### View the tests using [devcards](https://github.com/bhauman/devcards):
 
 ```
