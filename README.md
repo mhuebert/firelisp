@@ -1,8 +1,8 @@
 # FireLisp
 
-Checkout the live devcards-powered [tests]() and [intro]().
+Checkout the live [devcards](https://github.com/bhauman/devcards)-powered tests and intro: https://firelisp.firebaseapp.com
 
-### View the tests using [devcards](https://github.com/bhauman/devcards):
+To run locally:
 
 ```
 git clone git@github.com:mhuebert/firelisp.git;
@@ -11,4 +11,4 @@ lein npm install;
 lein figwheel devcards;
 ```
 
-Then open http://localhost:3451/
+Then open http://localhost:3451/ to view tests.
