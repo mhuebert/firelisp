@@ -3,6 +3,3 @@
     [static.targaryen]
     [firelisp.ruleset]
     [firelisp.standard-lib]))
-
-
-

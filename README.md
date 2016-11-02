@@ -9,4 +9,4 @@ lein npm install;
 lein figwheel devcards;
 ```
 
-Then open http://localhost:3451/cards.html
+Then open http://localhost:3451/

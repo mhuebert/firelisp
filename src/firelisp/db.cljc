@@ -7,6 +7,7 @@
      (:require [static.targaryen]
        [firelisp.ruleset :refer [compile-map merge-rules] :include-macros true]
        [firelisp.standard-lib]
+       [goog.object :as gobj]
        [firelisp.targaryen :as targar])
      :clj
      (:require
@@ -82,7 +83,7 @@
         (.tryWrite rule-set path database (clj->js data) auth nil nil nil now)))
 
      (defn set? [& args]
-       (true? (.-allowed (apply try-write args))))
+       (true? (gobj/get (apply try-write args) "allowed")))
 
      (defn try-patch
        ([db path data] (try-write db path data nil))
@@ -90,13 +91,13 @@
         (.tryPatch rule-set path database (clj->js data) auth nil nil nil now)))
 
      (defn update? [& args]
-       (.-allowed (apply try-patch args)))
+       (gobj/get (apply try-patch args) "allowed"))
 
      (defn write [mode {:keys [auth] :as db} path next-data]
        (let [f (case mode :set try-write :update try-patch)
              result (f db path (clj->js next-data))]
-         (if (.-allowed result)
-           (assoc db :database (.-newDatabase result)
+         (if (gobj/get result "allowed")
+           (assoc db :database (gobj/get result "newDatabase")
                      :last-result result)
            (do #_(log (.-info result))
              #_(.log js/console result)
@@ -116,11 +117,11 @@
        (.tryRead rule-set path database auth (new js/Date)))
 
      (defn read? [& args]
-       (.-allowed (apply try-read args)))
+       (gobj/get (apply try-read args) "allowed"))
 
      (defn read [{:keys [database] :as db} path]
        (let [result (try-read db path)]
-         (if (.-allowed result)
+         (if (gobj/get result "allowed")
            (.val (.child (.snapshot database "/") path))
-           (do (log (.-info result))
+           (do (log (gobj/get result "info"))
                (throw (js/Error "read not allowed"))))))))

@@ -7,8 +7,6 @@
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
-
-
 (deftest built-ins
 
   (testing "String Methods"

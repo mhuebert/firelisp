@@ -56,11 +56,11 @@
   ([root-data rules auth path next-data now]
    (let [result (try-write :set root-data rules auth path next-data now)]
      ;(.log js/console result)
-     (.-allowed result))))
+     (gobj/get result "allowed"))))
 
 (defn update?
   ([root-data rules auth path next-data] (update? root-data rules auth path next-data (.now js/Date)))
   ([root-data rules auth path next-data now]
    (let [result (try-write :update root-data rules auth path next-data now)]
      ;(.log js/console result)
-     (.-allowed result))))
+     (gobj/get result "allowed"))))

@@ -19,7 +19,7 @@
 
   :npm {:dependencies [["targaryen" "mhuebert/targaryen#ef54563c"]
                        ["browserify" "13.1.0"]]
-        :package      {:scripts {:postinstall "mkdir src/js; browserify node_modules/targaryen/index.js -s targaryen -o src/js/targaryen.js;"}}}
+        :package      {:scripts {:postinstall "buildTargaryen.sh"}}}
 
   :plugins [[lein-figwheel "0.5.3-2"]
             [lein-npm "0.6.2"]
@@ -51,8 +51,9 @@
                                        :parallel-build       true
                                        :optimizations        :simple}}
                        {:id           "prod"
-                        :source-paths ["src"]
-                        :compiler     {:main          "firelisp.core"
+                        :source-paths ["src" "tests"]
+                        :compiler     {:main          "test.cards"
+                                       :devcards      true
                                        :asset-path    "js/compiled/out"
                                        :output-to     "resources/public/js/compiled/firelisp.js"
                                        :optimizations :advanced}}]}

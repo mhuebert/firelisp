@@ -8,3 +8,6 @@ resources/public/js/compiled
 pom.xml
 src/js/targaryen.js
 _notes
+firebase
+firebase.json
+.firebaserc
