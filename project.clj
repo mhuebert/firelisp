@@ -1,5 +1,5 @@
 (defproject org.clojars.mhuebert/firelisp "0.1.0-SNAPSHOT"
-  :description "FIXME: write this!"
+  :description "Use Clojure(Script) to write Firebase rules"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url  "http://www.eclipse.org/legal/epl-v10.html"}
@@ -19,7 +19,7 @@
 
   :npm {:dependencies [["targaryen" "mhuebert/targaryen#ef54563c"]
                        ["browserify" "13.1.0"]]
-        :package      {:scripts {:postinstall "browserify node_modules/targaryen/index.js -s targaryen -o src/js/targaryen.js;"}}}
+        :package      {:scripts {:postinstall "mkdir src/js; browserify node_modules/targaryen/index.js -s targaryen -o src/js/targaryen.js;"}}}
 
   :plugins [[lein-figwheel "0.5.3-2"]
             [lein-npm "0.6.2"]
@@ -35,7 +35,7 @@
 
   :cljsbuild {:builds [{:id           "devcards"
                         :source-paths ["src" "tests"]
-                        :figwheel     {:devcards true}      ;; <- note this
+                        :figwheel     {:devcards true}
                         :compiler     {:main                 "test.runner"
                                        :asset-path           "js/compiled/devcards_out"
                                        :output-to            "resources/public/js/compiled/firelisp_devcards.js"
@@ -50,14 +50,6 @@
                                        :source-map-timestamp true
                                        :parallel-build       true
                                        :optimizations        :simple}}
-                       {:id           "dev"
-                        :source-paths ["src"]
-                        :figwheel     true
-                        :compiler     {:main                 "firelisp.core"
-                                       :asset-path           "js/compiled/out"
-                                       :output-to            "resources/public/js/compiled/firelisp.js"
-                                       :output-dir           "resources/public/js/compiled/out"
-                                       :source-map-timestamp true}}
                        {:id           "prod"
                         :source-paths ["src"]
                         :compiler     {:main          "firelisp.core"

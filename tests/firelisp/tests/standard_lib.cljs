@@ -51,7 +51,7 @@
 
     (is (= (compile '(admin? auth.uid))
            "(newData.child('users' + '/' + auth.uid + '/' + 'admin').val() === true)"))
-    (is (= (let [destructure-test (rules/fire-fn [x & args] '(= ~x ~(last args)))]
+    (is (= (let [destructure-test (rules/rulefn* [x & args] '(= ~x ~(last args)))]
              (compile (destructure-test "hello" "hello")))
            "('hello' === 'hello')")))
 

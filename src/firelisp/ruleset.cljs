@@ -1,15 +1,14 @@
 (ns firelisp.ruleset
   (:require
-    [firelisp.compile :refer [compile]]
+    [firelisp.compile :refer [compile *path*]]
     [firelisp.common :refer [append]]
     [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]
     [firelisp.targaryen :refer [ensure-rules try-read try-write]])
   (:require-macros
     [firelisp.ruleset :refer [add at with-template-quotes]]))
 
-(def ^:dynamic *path* [])
 (def ^:dynamic *rules* nil)
-(def ^:dynamic *fire-fns* (atom {}))
+
 
 (defn update-in-map
   "Update-in where the empty vector [] does not behave as [nil]"

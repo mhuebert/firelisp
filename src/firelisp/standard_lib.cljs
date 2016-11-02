@@ -1,7 +1,7 @@
 (ns firelisp.standard-lib
   (:require [firelisp.common :refer [append]]
             [clojure.set :refer [subset?]]
-            [firelisp.ruleset :as rules :refer [*fire-fns*]]
+            [firelisp.compile :refer [*rule-fns*]]
             [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
   (:require-macros [firelisp.ruleset :refer [rulefn with-template-quotes]]))
 
@@ -25,7 +25,7 @@
       '(child ~@(rest (first args)) ~@(rest args))
       '(child ~@args))))
 
-(swap! *fire-fns* merge {'and   (simplify 'and)
+(swap! *rule-fns* merge {'and   (simplify 'and)
                          'or    (simplify 'or)
                          'child simplify-child
                          '+     (simplify '+)

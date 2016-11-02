@@ -2,18 +2,12 @@
   (:require [clojure.string :as string]
             [firelisp.walk :refer [postorder-replace]]))
 
-
-;; resolve/check path variables
-;; auth(...)
-;; now
-;; child and parent also return .val()
-;; use `get`, with default... (get root :something :default)
-;;      and get-in            (get-in :root ["users"])
-;;  ...implement as fire-fns, keep child as base.
+(def ^:dynamic *path* [])
+(def ^:dynamic *rule-fns* (atom {}))
 
 (def terminal-forms '#{and or = not= + - * / % > < >= <= do prior not if exists? number? string? boolean? has-children? object? parent child has-child? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
 
-(defn apply-fns [fns form]
+(defn expand-1 [fns form]
   (postorder-replace
     (fn [expr]
       (if (seq? expr)
@@ -29,7 +23,7 @@
   [expr]
   (loop [current-expr expr
          count 0]
-    (let [next-expr (apply-fns @firelisp.ruleset/*fire-fns* current-expr)]
+    (let [next-expr (expand-1 @*rule-fns* current-expr)]
       (when (> count 100)
         (throw "Expand-fns probably in a loop, iterated 100 times"))
       (if (= next-expr current-expr)
@@ -55,8 +49,6 @@
 (defmethod emit :vector
   [{:keys [args]}]
   (str "[" (string/join ", " (map emit args)) "]"))
-
-
 
 (defmethod emit :list
   [{:keys [operator args prior as-snapshot?] :as n}]
@@ -107,9 +99,7 @@
       ends-with? (method "endsWith" n)
       matches? (method "matches" n)
       replace (method "replace" n)
-      length (str (emit (first args)) ".length")
-
-      )))
+      length (str (emit (first args)) ".length"))))
 
 (defn atom-type [form]
   (case form
@@ -139,7 +129,7 @@
     :snapshot (cond-> (case value
                         data (if (or (= mode :read) prior) "data" "newData")
                         root (if (or (= mode :read) prior) "root" (str "newData"
-                                                                       (apply str (take (count firelisp.ruleset/*path*)
+                                                                       (apply str (take (count *path*)
                                                                                         (repeat ".parent()"))))))
                       (not as-snapshot?) (str ".val()"))
     (str "<" (when prior "prior: ") value ">")))
@@ -156,7 +146,7 @@
   [opts form]
   (merge (dissoc opts :as-snapshot?)
          {:type :vector
-          :path firelisp.ruleset/*path*
+          :path *path*
           :args (map (partial node (assoc opts :coerce-to-val true)) (seq form))}))
 
 (defn snapshot-method? [sym]
@@ -186,21 +176,20 @@
     (if no-op?
       (node opts (last form))
       (merge {:type     :list
-              :path     firelisp.ruleset/*path*
+              :path     *path*
               :operator (first form)
               :args     args}
              opts))))
 
 (defmethod node :atom
   [opts form]
-  (let [atom-type (atom-type form)
-        path firelisp.ruleset/*path*]
+  (let [atom-type (atom-type form)]
     (when (and (= atom-type :symbol)
                (= \$ (first (name form)))
-               (not (contains? (set (map str path)) (munge (name form)))))
+               (not (contains? (set (map str *path*)) (munge (name form)))))
       (throw (js/Error (str "Path variable not found: " (name form)))))
     (merge {:type      :atom
-            :path      path
+            :path      *path*
             :value     form
             :atom-type atom-type}
            opts)))
@@ -210,10 +199,8 @@
   ([opts expr]
    (let [opts (merge {:prior        false
                       :mode         :write
-                      :as-snapshot? false} opts)
-         expanded-form (expand expr)
-         ast (node opts expanded-form)
-         result (emit ast)]
-     #_(prn :compile-expr ast)
-     #_(prn :out-expr result)
-     result)))
+                      :as-snapshot? false} opts)]
+     (->> expr
+          (expand)
+          (node opts)
+          (emit)))))

@@ -30,7 +30,7 @@
        (let [body (cond-> body
                           (string? (first body)) rest)]
          (with-template-quotes
-           '(update ~db :functions assoc (quote ~name) (firelisp.ruleset/fire-fn ~@(cons name body))))))
+           '(update ~db :functions assoc (quote ~name) (firelisp.ruleset/rulefn* ~@(cons name body))))))
 
      (defmacro throws [& body]
        (let [docstring (when (string? (last body)) (last body))
@@ -58,13 +58,13 @@
         :compiled-rules {}
         :rule-set       (targar/ensure-rules {})
         :database       (targar/database {} (.now js/Date))
-        :functions      @firelisp.ruleset/*fire-fns*
+        :functions      @firelisp.compile/*rule-fns*
         :now            (.now js/Date)})
 
      (defn compiled-rules
        ([db] (compiled-rules db (:rules db)))
        ([db rules]
-        (binding [firelisp.ruleset/*fire-fns* (atom (:functions db))]
+        (binding [firelisp.compile/*rule-fns* (atom (:functions db))]
           (compile-map rules))))
 
      (defn register-rules [db rules]

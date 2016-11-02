@@ -7,17 +7,17 @@
   (firelisp.backtick/template
     (do ~@(convert-quotes body))))
 
+(defmacro rulefn* [& body]
+  (with-template-quotes
+    '(firelisp.ruleset/with-template-quotes
+       (fn ~@body))))
+
 (defmacro rulefn [name & body]
   (with-template-quotes
     (let [body (cond-> body
                        (string? (first body)) rest)]
-      '(swap! firelisp.ruleset/*fire-fns*
-              assoc (quote ~name) (firelisp.ruleset/fire-fn ~@(cons name body))))))
-
-(defmacro fire-fn [& body]
-  (with-template-quotes
-    '(firelisp.ruleset/with-template-quotes
-       (fn ~@body))))
+      '(swap! firelisp.compile/*rule-fns*
+              assoc (quote ~name) (firelisp.ruleset/rulefn* ~@(cons name body))))))
 
 (def blank-rules {:read     #{}
                   :create   #{}
@@ -60,7 +60,7 @@
                        (map? (first body)) (->> (drop 1)
                                                 (cons '(firelisp.ruleset/authorize ~(first body)))))]
       '(let [segments# (map str (firelisp.paths/parse-path ~path))
-             leaf-rules# (binding [firelisp.ruleset/*path* (apply conj firelisp.ruleset/*path* segments#)
+             leaf-rules# (binding [firelisp.compile/*path* (apply conj firelisp.compile/*path* segments#)
                                    firelisp.ruleset/*rules* (atom ~blank-rules)]
                            ~@(firelisp.common/convert-quotes body)
                            @firelisp.ruleset/*rules*)
