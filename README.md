@@ -1,5 +1,7 @@
 # FireLisp
 
+Write Firebase rules in Clojure.
+
 Read the intro, see the tests: https://firelisp.firebaseapp.com
 
 To run locally:
