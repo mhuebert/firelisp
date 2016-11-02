@@ -1,6 +1,6 @@
 # FireLisp
 
-Checkout the live [devcards](https://github.com/bhauman/devcards)-powered tests and intro: https://firelisp.firebaseapp.com
+Read the intro, see the tests: https://firelisp.firebaseapp.com
 
 To run locally:
 
