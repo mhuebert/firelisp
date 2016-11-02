@@ -5,7 +5,7 @@
 (def ^:dynamic *path* [])
 (def ^:dynamic *rule-fns* (atom {}))
 
-(def terminal-forms '#{and or = not= + - * / % > < >= <= do prior not if exists? number? string? boolean? has-children? object? parent child has-child? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
+(def terminal-forms '#{and or = not= + - * / % > < >= <= do prior not if exists? number? string? boolean? object? parent child contains-key? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
 
 (defn expand-1 [fns form]
   (postorder-replace
@@ -82,14 +82,13 @@
       string? (method "isString" n)
       boolean? (method "isBoolean" n)
 
-      has-children? (method "hasChildren" n)
       object? (method "hasChildren" n)
 
       parent (cond-> (method "parent" n)
                      (not as-snapshot?) (str ".val()"))
       child (cond-> (method "child" n " + '/' + ")
                     (not as-snapshot?) (str ".val()"))
-      has-child? (method "hasChild" n)
+      contains-key? (method "hasChild" n)
 
       ;; string methods
       upper-case (method "toUpperCase" n)
@@ -150,15 +149,14 @@
           :args (map (partial node (assoc opts :coerce-to-val true)) (seq form))}))
 
 (defn snapshot-method? [sym]
-  (contains? #{'has-children?
-               'exists?
+  (contains? #{'exists?
                'number?
                'string?
                'boolean?
                'object?
                'parent
                'child
-               'has-child?} sym))
+               'contains-key?} sym))
 
 (defn no-op? [form]
   (and (seq? form)
@@ -194,8 +192,8 @@
             :atom-type atom-type}
            opts)))
 
-(defn compile
-  ([expr] (compile {} expr))
+(defn compile-expr
+  ([expr] (compile-expr {} expr))
   ([opts expr]
    (let [opts (merge {:prior        false
                       :mode         :write

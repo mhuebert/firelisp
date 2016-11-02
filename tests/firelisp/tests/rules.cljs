@@ -1,9 +1,9 @@
-(ns firelisp.tests.ruleset
+(ns firelisp.tests.rules
   (:require
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at throws]]
     [firelisp.targaryen :as t]
-    [firelisp.ruleset :refer [compile-map] :refer-macros [add]]
+    [firelisp.rules :refer [compile] :refer-macros [add]]
     [firelisp.paths :refer [parse-path]])
   (:require-macros
     [firelisp.backtick :refer [template]]
@@ -29,18 +29,18 @@
     (is (= (parse-path "x/y/$z")
            '["x" "y" $z]))
 
-    (is (= (compile-map (at "x/$y/$z"
-                            {:read true}))
+    (is (= (compile (at "x/$y/$z"
+                        {:read true}))
            '{"x" {"$y" {"$z" {".read" "true"}}}}))
 
-    (is (= (compile-map (at "/"
-                            {:read true}))
+    (is (= (compile (at "/"
+                        {:read true}))
            '{".read" "true"}))
 
     (is (=
-          (compile-map (at "cell"
-                           {:read true}
-                           (at "owner"
+          (compile (at "cell"
+                       {:read true}
+                       (at "owner"
                                {:write '(= auth.uid data)})))
           {"cell" {".read" "true"
                    "owner" {".write" "(auth.uid === newData.val())"}}})))
@@ -185,13 +185,13 @@
       ))
 
   (testing "validating types"
-    (let [rules (compile-map (at "/"
-                                 {:write true}
-                                 (at "auth-uid"
+    (let [rules (compile (at "/"
+                             {:write true}
+                             (at "auth-uid"
                                      {:validate '(= data auth.uid)})
-                                 (at "number"
+                             (at "number"
                                      {:validate '(number? data)})
-                                 (at "string"
+                             (at "string"
                                      {:validate '(string? data)})))
           write? (partial t/write? {} rules)]
 
@@ -205,8 +205,8 @@
       (is (write? nil "/string" "frank"))))
 
   (testing "Indexes"
-    (is (= (compile-map (at "/"
-                            {:index ["title"]}))
+    (is (= (compile (at "/"
+                        {:index ["title"]}))
            {".indexOn" ["title"]})))
 
 
@@ -221,27 +221,27 @@
 
     (is (= (-> (at "y/$wow"
                    {:write '(= (get root "x") true)})
-               compile-map
+               compile
                (get-in ["y" "$wow" ".write"]))
            "(newData.parent().parent().child('x').val() === true)"))
 
     (is (= (-> (at "y/z"
                    {:write '(= (prior (get root "x")) true)})
-               compile-map
+               compile
                (get-in ["y" "z" ".write"]))
            "(root.child('x').val() === true)")))
 
   (testing "Children"
     (is (= (-> (at "/"
                    {:children ["title"]})
-               compile-map
+               compile
                (get ".validate"))
            "newData.hasChildren(['title'])")))
 
   (testing "Indexes"
     (is (= (-> (at "/"
                    {:index ["title"]})
-               compile-map
+               compile
                (get ".indexOn"))
            ["title"]))
     )
@@ -270,11 +270,11 @@
 
   (testing "(path \"cell\" (authorize {:read true}))"
 
-    (is (= (t/read? {} (compile-map (at "cell" {:read true})) nil "/") false))
-    (is (= (t/read? {} (compile-map (at "cell" {:read true})) nil "/cell") true)))
+    (is (= (t/read? {} (compile (at "cell" {:read true})) nil "/") false))
+    (is (= (t/read? {} (compile (at "cell" {:read true})) nil "/cell") true)))
 
   (testing "rules: {:read '(= auth.uid data.owner)}, data: {:cell {:owner 'mhuebert'}}"
-    (let [rules (compile-map (at "/" {:read '(= auth.uid (get data "owner"))}))
+    (let [rules (compile (at "/" {:read '(= auth.uid (get data "owner"))}))
           data {:owner "mhuebert"}
           read? (partial t/read? data rules)]
 
@@ -282,12 +282,12 @@
       (is (= true (read? {:uid "mhuebert"} "/")))))
 
   (testing "path variables"
-    (is (true? (t/read? {} (compile-map (at "$user" {:read '(= $user auth.uid)})) {:uid "mhuebert"} "/mhuebert")))
-    (is (false? (t/read? {} (compile-map (at "$user" {:read '(= $user auth.uid)})) {:uid "frank"} "/mhuebert"))))
+    (is (true? (t/read? {} (compile (at "$user" {:read '(= $user auth.uid)})) {:uid "mhuebert"} "/mhuebert")))
+    (is (false? (t/read? {} (compile (at "$user" {:read '(= $user auth.uid)})) {:uid "frank"} "/mhuebert"))))
 
   (testing "server value"
-    (let [rules (compile-map (at "/"
-                                 {:write    true
+    (let [rules (compile (at "/"
+                             {:write    true
                                   :validate '(= data now)}))]
       (is (false? (t/write? {} rules nil "/" (dec (.now js/Date)))))
       (is (t/write? {} rules nil "/" {".sv" "timestamp"}))))

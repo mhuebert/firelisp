@@ -5,14 +5,14 @@
      (:refer-clojure :exclude [defn]))
   #?(:cljs
      (:require [static.targaryen]
-       [firelisp.ruleset :refer [compile-map merge-rules] :include-macros true]
+       [firelisp.rules :refer [compile merge-rules] :include-macros true]
        [firelisp.standard-lib]
        [goog.object :as gobj]
        [firelisp.targaryen :as targar])
      :clj
      (:require
        [firelisp.common :refer [convert-quotes]]
-       [firelisp.ruleset :refer [with-template-quotes]]
+       [firelisp.rules :refer [with-template-quotes]]
        [firelisp.backtick :refer [template]]))
   #?(:cljs
      (:require-macros [firelisp.db])))
@@ -21,17 +21,18 @@
 #?(:clj
    (do
      (defmacro at [& body]
-       `(firelisp.ruleset/at ~@body))
+       (with-template-quotes
+         '(firelisp.rules/at ~@body)))
 
      (defmacro rules [db & body]
        (with-template-quotes
-         '(firelisp.db/register-rules ~db (firelisp.ruleset/at "/" ~@body))))
+         '(firelisp.db/register-rules ~db (firelisp.rules/at "/" ~@body))))
 
      (defmacro defn [db name & body]
        (let [body (cond-> body
                           (string? (first body)) rest)]
          (with-template-quotes
-           '(update ~db :functions assoc (quote ~name) (firelisp.ruleset/rulefn* ~@(cons name body))))))
+           '(update ~db :functions assoc (quote ~name) (firelisp.rules/rulefn* ~@(cons name body))))))
 
      (defmacro throws [& body]
        (let [docstring (when (string? (last body)) (last body))
@@ -66,7 +67,7 @@
        ([db] (compiled-rules db (:rules db)))
        ([db rules]
         (binding [firelisp.compile/*rule-fns* (atom (:functions db))]
-          (compile-map rules))))
+          (compile rules))))
 
      (defn register-rules [db rules]
        (let [merged-rules (merge-rules (:rules db) rules)
@@ -118,6 +119,10 @@
 
      (defn read? [& args]
        (gobj/get (apply try-read args) "allowed"))
+
+     (defn write?
+       [db path data]
+       (gobj/get (try-write db path data) "allowed"))
 
      (defn read [{:keys [database] :as db} path]
        (let [result (try-read db path)]

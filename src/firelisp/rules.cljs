@@ -1,11 +1,11 @@
-(ns firelisp.ruleset
+(ns firelisp.rules
   (:require
-    [firelisp.compile :refer [compile *path*]]
+    [firelisp.compile :refer [compile-expr *path*]]
     [firelisp.common :refer [append]]
     [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]
     [firelisp.targaryen :refer [ensure-rules try-read try-write]])
   (:require-macros
-    [firelisp.ruleset :refer [add at with-template-quotes]]))
+    [firelisp.rules :refer [add at with-template-quotes]]))
 
 (def ^:dynamic *rules* nil)
 
@@ -31,8 +31,6 @@
                                 :uid      "uid"})))
 
 
-
-(declare compile-map)
 
 (defn filter-by-value [pred m]
   (reduce-kv (fn [m k v] (cond-> m
@@ -61,8 +59,9 @@
 (def cud-preds (condition-preds 'data))
 
 (defn log [x] (prn x) x)
-(defn compile-map
-  ([rules] (compile-map rules [] 0))
+
+(defn compile
+  ([rules] (compile rules [] 0))
   ([{:keys [create read update delete index write validate children] :as rules} path depth]
    (with-template-quotes
      (let [validate (cond-> validate
@@ -70,12 +69,12 @@
        (merge
          (binding [*path* path]
            (cond-> {}
-                   (seq read) (assoc ".read" (compile {:mode :read}
-                                                      '(and ~@read)))
+                   (seq read) (assoc ".read" (compile-expr {:mode :read}
+                                                           '(and ~@read)))
 
                    (first (keep seq [write create update delete]))
-                   (assoc ".write" (compile {:mode :write}
-                                            (if (seq write)
+                   (assoc ".write" (compile-expr {:mode :write}
+                                                 (if (seq write)
                                               (cond-> '(and ~@write)
                                                       (seq create) (append '(when ~(:create cud-preds) (and ~@create)))
                                                       (seq update) (append '(when ~(:update cud-preds) (and ~@update)))
@@ -87,15 +86,15 @@
                    (seq index) (assoc ".indexOn" (vec index))
                    (or (seq validate)
                        (seq children)) (assoc ".validate"
-                                              (compile {:mode :validate}
-                                                       (cond-> '(and)
+                                              (compile-expr {:mode :validate}
+                                                            (cond-> '(and)
                                                                (seq children)
-                                                               (append '(has-children? data [~@children]))
+                                                               (append '(object? data [~@children]))
                                                                (seq validate)
                                                                (append '(do ~@validate)))))))
          (reduce-kv (fn [m k v]
                       (assoc m (munge k)
-                               (compile-map v (conj path k) (inc depth))))
+                               (compile v (conj path k) (inc depth))))
                     {}
                     (dissoc rules :create :read :update :delete :index :write :validate :children)))))))
 

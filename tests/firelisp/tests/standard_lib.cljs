@@ -1,7 +1,7 @@
 (ns firelisp.tests.standard-lib
   (:require [devcards.core :refer-macros [deftest]]
-            [firelisp.ruleset :as rules]
-            [firelisp.compile :refer [compile expand]]
+            [firelisp.rules :as rules]
+            [firelisp.compile :refer [compile-expr expand]]
             [firelisp.db :as db :include-macros true])
   (:require-macros
     [firelisp.db :refer [at throws]]
@@ -44,20 +44,20 @@
 
   (testing "Functions"
     (at "/x"
-        (is (= (compile {:mode :read}
-                        '(admin? "mhuebert"))
+        (is (= (compile-expr {:mode :read}
+                             '(admin? "mhuebert"))
                "(root.child('users' + '/' + 'mhuebert' + '/' + 'admin').val() === true)")))
 
 
-    (is (= (compile '(admin? auth.uid))
+    (is (= (compile-expr '(admin? auth.uid))
            "(newData.child('users' + '/' + auth.uid + '/' + 'admin').val() === true)"))
     (is (= (let [destructure-test (rules/rulefn* [x & args] '(= ~x ~(last args)))]
-             (compile (destructure-test "hello" "hello")))
+             (compile-expr (destructure-test "hello" "hello")))
            "('hello' === 'hello')")))
 
   (testing "Let"
 
-    (is (= (compile '(let [x auth.token
+    (is (= (compile-expr '(let [x auth.token
                            y "matt"]
                        (let [x auth.uid]
                          (and (= (get-in root ["admin" "uid"]) x)
@@ -69,9 +69,9 @@
 
 
   (testing "cond"
-    (is (= (compile '(cond 1 2
-                           3 4
-                           :else 5))
+    (is (= (compile-expr '(cond 1 2
+                                3 4
+                                :else 5))
            "(1 ? 2 : (3 ? 4 : 5))")))
 
   (testing "-> (threading macro)"

@@ -3,7 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.common :refer [append]]
     [firelisp.db :as db :refer-macros [at rules]]
-    [firelisp.ruleset :refer [compile-map]]
+    [firelisp.rules :refer [compile]]
     [firelisp.targaryen :as targar :refer [read? write? update? try-write]])
   (:require-macros
     [cljs.test :refer [is testing]]))
@@ -139,8 +139,8 @@
 
     ; "From [this example by katowulf,](http://jsfiddle.net/firebase/VBmA5/) 'throttle messages to no more than one every 5,000 milliseconds'"
 
-    (let [rules (compile-map (at "/"
-                                 {"last_message/$user"
+    (let [rules (compile (at "/"
+                             {"last_message/$user"
                                   {:write  '(= $user auth.uid)
                                    :create '(= data now)
                                    :update '(and (= data now)

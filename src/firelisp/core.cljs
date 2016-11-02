@@ -1,5 +1,5 @@
 (ns firelisp.core
   (:require
     [static.targaryen]
-    [firelisp.ruleset]
+    [firelisp.rules]
     [firelisp.standard-lib]))

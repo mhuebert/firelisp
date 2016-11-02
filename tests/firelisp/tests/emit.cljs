@@ -2,8 +2,8 @@
   (:require
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at]]
-    [firelisp.compile :refer [compile expand]]
-    [firelisp.ruleset :refer [compile-map]])
+    [firelisp.compile :refer [compile-expr expand]]
+    [firelisp.rules :refer [compile] :include-macros true])
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
@@ -12,7 +12,7 @@
   (testing "String Methods"
 
     (are [form out]
-      (= (compile form) out)
+      (= (compile-expr form) out)
       '(length data) "newData.val().length"
       '(length (child data "p")) "newData.child('p').val().length"
       '(< (length data) 100) "(newData.val().length < 100)"
@@ -37,7 +37,7 @@
   (testing "Logic"
 
     (are [form out]
-      (= (compile form) out)
+      (= (compile-expr form) out)
       '(and (= 1 1) (= 2 2)) "((1 === 1) && (2 === 2))"
       '(or (exists? data) (exists? (get root "foo"))) "(newData.exists() || newData.child('foo').exists())"
       '(> root 0) "(newData.val() > 0)"
@@ -46,26 +46,25 @@
       '(if (= 1 1) true false) "((1 === 1) ? true : false)"))
 
   (testing "vector->array"
-    (is (= (compile '[1 2 3 4])
+    (is (= (compile-expr '[1 2 3 4])
            "[1, 2, 3, 4]"))
-    (is (= (compile '[1 "hello"])
+    (is (= (compile-expr '[1 "hello"])
            "[1, 'hello']")))
 
   (testing "no-ops"
-    (is (= (compile '(prior [1]))
-           (compile '(do [1]))
+    (is (= (compile-expr '(prior [1]))
+           (compile-expr '(do [1]))
            "[1]")))
 
 
   (testing "Snapshot methods"
     (are [expr s]
-      (= (compile expr) s)
+      (= (compile-expr expr) s)
       'data "newData.val()"
       'root "newData.val()"
       '(prior data) "data.val()"
 
       '(exists? data) "newData.exists()"
-      '(has-children? (prior data)) "data.hasChildren()"
       '(object? data) "newData.hasChildren()"
       '(number? data) "newData.isNumber()"
       '(string? data) "newData.isString()"
@@ -75,15 +74,15 @@
       '(parent (parent data)) "newData.parent().parent().val()"
       '(child data "x") "newData.child('x').val()"
       '(child data "x" "y") "newData.child('x' + '/' + 'y').val()"
-      '(has-child? data "p") "newData.hasChild('p')"
+      '(contains-key? data "p") "newData.hasChild('p')"
       '(child data (string? (child (prior root) "x"))) "newData.child(root.child('x').isString()).val()")
 
-    (at "x" (is (= (compile 'root) "newData.parent().val()"))))
+    (at "x" (is (= (compile-expr 'root) "newData.parent().val()"))))
 
   (testing "Parent/Child Navigation (path '/$sweet' ...)"
     (at "/$sweet-thing"
         (are [form out]
-          (= (compile form) out)
+          (= (compile-expr form) out)
 
           '(= (child (parent data) "name") "frank")
           "(newData.parent().child('name').val() === 'frank')"
@@ -103,7 +102,7 @@
 
   (testing "Priors"
     (are [form out]
-      (= (compile form) out)
+      (= (compile-expr form) out)
 
       '(= (get data "x") true)
       "(newData.child('x').val() === true)"
@@ -113,8 +112,8 @@
 
   (testing "depth"
 
-    (is (= (compile '(+ 1
-                        (- 2
+    (is (= (compile-expr '(+ 1
+                             (- 2
                            (* 3
                               (/ 4))
                            2)))
@@ -125,7 +124,7 @@
     (is (= (-> (at "/x"
                    (at "/q"
                        {:validate '(= true (get root "q"))}))
-               compile-map
+               compile
                (get-in ["x" "q" ".validate"]))
            "(true === newData.parent().parent().child('q').val())"))
 
@@ -143,7 +142,7 @@
 
   (testing "Child conversions"
 
-    (is (= (compile '(child root "x" "y" auth.uid))
+    (is (= (compile-expr '(child root "x" "y" auth.uid))
            "newData.child('x' + '/' + 'y' + '/' + auth.uid).val()")))
 
   (testing "Rule expansion (path '/x' ...) "

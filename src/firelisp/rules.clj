@@ -1,4 +1,4 @@
-(ns firelisp.ruleset
+(ns firelisp.rules
   (:require
     [firelisp.backtick]
     [firelisp.common :refer [convert-quotes]]))
@@ -9,7 +9,7 @@
 
 (defmacro rulefn* [& body]
   (with-template-quotes
-    '(firelisp.ruleset/with-template-quotes
+    '(firelisp.rules/with-template-quotes
        (fn ~@body))))
 
 (defmacro rulefn [name & body]
@@ -17,7 +17,7 @@
     (let [body (cond-> body
                        (string? (first body)) rest)]
       '(swap! firelisp.compile/*rule-fns*
-              assoc (quote ~name) (firelisp.ruleset/rulefn* ~@(cons name body))))))
+              assoc (quote ~name) (firelisp.rules/rulefn* ~@(cons name body))))))
 
 (def blank-rules {:read     #{}
                   :create   #{}
@@ -32,41 +32,41 @@
   [path & rules]
   (if (odd? (count rules))
     (with-template-quotes
-      '(firelisp.ruleset/add "" ~@(cons path rules)))
+      '(firelisp.rules/add "" ~@(cons path rules)))
     (with-template-quotes
       '(let [parsed-path (firelisp.paths/parse-path ~path)]
          ~@(for [[type rule] (partition 2 rules)]
              '(let [f (if (#{:index :children} ~type) (partial apply conj) conj)]
-                (swap! firelisp.ruleset/*rules* update-in (concat (map str parsed-path) (list ~type)) f ~rule)))))))
+                (swap! firelisp.rules/*rules* update-in (concat (map str parsed-path) (list ~type)) f ~rule)))))))
 
 (defmacro authorize [m]
   (with-template-quotes
     '(do
        ~@(for [[type rule] (seq m)]
            (case type
-             :validate '(firelisp.ruleset/validate ~rule)
+             :validate '(firelisp.rules/validate ~rule)
              (:create
                :read
                :update
                :delete
                :index
                :write
-               :children) '(firelisp.ruleset/add ~type ~rule)
-             '(firelisp.ruleset/at ~type ~rule))))))
+               :children) '(firelisp.rules/add ~type ~rule)
+             '(firelisp.rules/at ~type ~rule))))))
 
 (defmacro at [path & body]
   (with-template-quotes
     (let [body (cond-> body
                        (map? (first body)) (->> (drop 1)
-                                                (cons '(firelisp.ruleset/authorize ~(first body)))))]
+                                                (cons '(firelisp.rules/authorize ~(first body)))))]
       '(let [segments# (map str (firelisp.paths/parse-path ~path))
              leaf-rules# (binding [firelisp.compile/*path* (apply conj firelisp.compile/*path* segments#)
-                                   firelisp.ruleset/*rules* (atom ~blank-rules)]
+                                   firelisp.rules/*rules* (atom ~blank-rules)]
                            ~@(firelisp.common/convert-quotes body)
-                           @firelisp.ruleset/*rules*)
+                           @firelisp.rules/*rules*)
              rules# (->> leaf-rules#
-                         (firelisp.ruleset/update-in-map (some-> firelisp.ruleset/*rules* deref) segments# firelisp.ruleset/merge-rules)
-                         (firelisp.ruleset/filter-by-value #(not (and (set? %) (empty? %)))))]
-         (some-> firelisp.ruleset/*rules*
-                 (swap! firelisp.ruleset/merge-rules rules#))
+                         (firelisp.rules/update-in-map (some-> firelisp.rules/*rules* deref) segments# firelisp.rules/merge-rules)
+                         (firelisp.rules/filter-by-value #(not (and (set? %) (empty? %)))))]
+         (some-> firelisp.rules/*rules*
+                 (swap! firelisp.rules/merge-rules rules#))
          rules#))))

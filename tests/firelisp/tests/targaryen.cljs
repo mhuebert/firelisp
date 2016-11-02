@@ -3,7 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at throws isn't]]
     [firelisp.paths :refer [parse-path]]
-    [firelisp.ruleset :refer [compile-map] :refer-macros [add with-template-quotes]]
+    [firelisp.rules :refer [compile] :refer-macros [add with-template-quotes]]
     [firelisp.targaryen :as targar])
   (:require-macros
     [cljs.test :refer [is testing]]))
