@@ -1,0 +1,10 @@
+.idea
+target
+*.log
+*.iml
+doo-index.html
+node_modules
+resources/public/js/compiled
+pom.xml
+README.md
+src/js/targaryen.js
