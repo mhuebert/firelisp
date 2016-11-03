@@ -3,10 +3,10 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at throws]]
     [firelisp.targaryen :as t]
-    [firelisp.rules :refer [compile] :refer-macros [add]]
+    [firelisp.rules :refer [compile add]]
     [firelisp.paths :refer [parse-path]])
   (:require-macros
-    [firelisp.backtick :refer [template]]
+    [firelisp.common :refer [template]]
     [cljs.test :refer [is testing async]]))
 
 

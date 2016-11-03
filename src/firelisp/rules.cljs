@@ -1,14 +1,25 @@
 (ns firelisp.rules
   (:require
     [firelisp.compile :refer [compile-expr *path*]]
-    [firelisp.common :refer [append]]
-    [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]
-    [firelisp.targaryen :refer [ensure-rules try-read try-write]])
+    [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
+    [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
   (:require-macros
-    [firelisp.rules :refer [add at with-template-quotes]]))
+    [firelisp.rules :refer [at]]))
 
 (def ^:dynamic *rules* nil)
 
+(defn add
+  [path & rules]
+  (try (let [[path rules] (if (odd? (count rules))
+                            ["" (cons path rules)]
+                            [path rules])
+             parsed-path (map str (firelisp.paths/parse-path path))]
+         (doall (for [[type rule] (partition 2 rules)
+                      :let [path (concat parsed-path (list type))
+                            f (if (#{:index :children} type) (partial apply conj) conj)]]
+                  (swap! *rules* update-in path f rule))))
+       (catch js/Error e
+         (.log js/console "add-err" e))))
 
 (defn update-in-map
   "Update-in where the empty vector [] does not behave as [nil]"
@@ -75,23 +86,23 @@
                    (first (keep seq [write create update delete]))
                    (assoc ".write" (compile-expr {:mode :write}
                                                  (if (seq write)
-                                              (cond-> '(and ~@write)
-                                                      (seq create) (append '(when ~(:create cud-preds) (and ~@create)))
-                                                      (seq update) (append '(when ~(:update cud-preds) (and ~@update)))
-                                                      (seq delete) (append '(when ~(:delete cud-preds) (and ~@delete))))
-                                              (cond->> 'false
-                                                       (seq create) (append '(if ~(:create cud-preds) (and ~@create)))
-                                                       (seq update) (append '(if ~(:update cud-preds) (and ~@update)))
-                                                       (seq delete) (append '(if ~(:delete cud-preds) (and ~@delete)))))))
+                                                   (cond-> '(and ~@write)
+                                                           (seq create) (append '(when ~(:create cud-preds) (and ~@create)))
+                                                           (seq update) (append '(when ~(:update cud-preds) (and ~@update)))
+                                                           (seq delete) (append '(when ~(:delete cud-preds) (and ~@delete))))
+                                                   (cond->> 'false
+                                                            (seq create) (append '(if ~(:create cud-preds) (and ~@create)))
+                                                            (seq update) (append '(if ~(:update cud-preds) (and ~@update)))
+                                                            (seq delete) (append '(if ~(:delete cud-preds) (and ~@delete)))))))
                    (seq index) (assoc ".indexOn" (vec index))
                    (or (seq validate)
                        (seq children)) (assoc ".validate"
                                               (compile-expr {:mode :validate}
                                                             (cond-> '(and)
-                                                               (seq children)
-                                                               (append '(object? data [~@children]))
-                                                               (seq validate)
-                                                               (append '(do ~@validate)))))))
+                                                                    (seq children)
+                                                                    (append '(object? data [~@children]))
+                                                                    (seq validate)
+                                                                    (append '(do ~@validate)))))))
          (reduce-kv (fn [m k v]
                       (assoc m (munge k)
                                (compile v (conj path k) (inc depth))))
@@ -109,26 +120,22 @@
    (if (map? one-arg) (validate nil one-arg)
                       (validate one-arg nil)))
   ([root-rule child-rules]
-   (with-template-quotes
-     (when root-rule
-       (add :validate (wrap-rule root-rule)))
+   (when root-rule
+     (add :validate (wrap-rule root-rule)))
 
-     (when child-rules
-       (doseq [[child-name rule] (seq child-rules)]
-         (cond (map? rule)
-               (at (munge (name child-name))
-                   {:validate rule})
+   (when child-rules
+     (doseq [[child-name rule] (seq child-rules)]
+       (cond (map? rule)
+             (at (munge (name child-name))
+                 {:validate rule})
+             (not (nil? rule))
+             (add child-name :validate (wrap-rule rule))
+             :else nil)
+       (when (and (not (:optional (meta rule)))
+                  (not (= \$ (first (name child-name)))))
+         (add :children [child-name])))
 
-               (not (nil? rule))
-               (add child-name :validate (wrap-rule rule))
+     (when (empty? (filter #(= \$ (first (name %))) (keys child-rules)))
+       (add "$other" :validate false))
 
-               :else nil)
-
-         (when (and (not (:optional (meta rule)))
-                    (not (= \$ (first (name child-name)))))
-           (add :children [child-name])))
-
-       (when (empty? (filter #(= \$ (first (name %))) (keys child-rules)))
-         (add "$other" :validate false))
-
-       (add :validate '(object? data))))))
+     (add :validate '(object? data)))))

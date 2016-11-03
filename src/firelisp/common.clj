@@ -1,8 +1,22 @@
+(ns firelisp.common
+  (:require
+    [clojure.walk :as walk]))
+
+(defn convert-quotes [form]
+  (walk/postwalk (fn [x]
+                   (if (and (seq? x)
+                            (= (first x) 'quote)
+                            (not (and (symbol? (second x))
+                                      (= 2 (count x)))))
+                     (cons 'firelisp.common/template (rest x))
+                     x)) form))
+
+;template quoting:
+;
 ;https://github.com/brandonbloom/backtick
 ;Copyright © 2012 Brandon Bloom
 ;Distributed under the Eclipse Public License, the same as Clojure.
-
-(ns firelisp.backtick)
+;Modified 2016 Matthew Huebert
 
 (def ^:dynamic ^:private *gensyms*)
 
@@ -48,6 +62,5 @@
   (binding [*gensyms* (atom {})]
     (quote-fn* form)))
 
-(defn template-fn [form]
-  (binding [*gensyms* (atom {})]
-    (quote-fn* form)))
+(defmacro with-template-quotes [& forms]
+  `(do ~@(convert-quotes forms)))

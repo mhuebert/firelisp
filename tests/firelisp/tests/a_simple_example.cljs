@@ -15,13 +15,16 @@
 (def md dc/markdown->react)
 
 (defn mixed [& body]
-  (html
-    [:div
-     (->> body
-          (map-indexed
-            #(do [:div {:key %1} (cond (string? %2) (md %2)
-                                       (vector? %2) (html %2)
-                                       :else %2)])))]))
+  (let [parse-element (fn parse-element [el]
+                        (cond (string? el) (md el)
+                              (vector? el) (html el)
+                              (seq? el) (map parse-element el)
+                              :else el))]
+    (html
+      [:div
+       (->> body
+            (map-indexed
+              #(do [:div {:key %1} (parse-element %2)])))])))
 
 (defn row [label]
   [:tr [:td {:col-span 3
@@ -247,9 +250,6 @@
       (form-example-compile
         "(child data \"x\" \"y\")")
 
-
-
-
       ]])
 
   )
@@ -267,20 +267,20 @@
        [:td {:style {:padding "0 20px"}} (md "**Expanded Form**")]]
 
       (form-example-expand
-"(let [x 4]
-  (+ x 1))"
-"(-> data
-    parent
-    (child \"title\")
-    lower-case)"
-"(cond 1 2
-      3 4
-      :else 5)"
-"(in? #{\"a\" \"b\"} data)"
+        "(let [x 4]
+          (+ x 1))"
+        "(-> data
+            parent
+            (child \"title\")
+            lower-case)"
+        "(cond 1 2
+              3 4
+              :else 5)"
+        "(in? #{\"a\" \"b\"} data)"
 
-"(every-> data
-         string?
-         (contains? \"123\"))"
+        "(every-> data
+                 string?
+                 (contains? \"123\"))"
 
         )]]
 
@@ -319,8 +319,6 @@
   (is (db/read? d \"/cells\"))
   (is (db/write? d \"/cells/matt\" doc))
   (is (false? (db/write? d \"/cells/pete\" doc))))")
-
-
 
     ))
 

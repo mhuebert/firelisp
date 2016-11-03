@@ -1,9 +1,9 @@
 (ns firelisp.standard-lib
-  (:require [firelisp.common :refer [append]]
+  (:require [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
             [clojure.set :refer [subset?]]
             [firelisp.compile :refer [*rule-fns*]]
             [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
-  (:require-macros [firelisp.rules :refer [rulefn with-template-quotes]]))
+  (:require-macros [firelisp.rules :refer [rulefn]]))
 
 (defn simplify [sym]
   (with-template-quotes

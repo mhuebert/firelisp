@@ -13,5 +13,5 @@
                             (= (first x) 'quote)
                             (not (and (symbol? (second x))
                                       (= 2 (count x)))))
-                     (cons 'firelisp.backtick/template (rest x))
+                     (cons 'firelisp.common/template (rest x))
                      x)) form))

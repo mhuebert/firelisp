@@ -16,8 +16,8 @@
       doc {:title "my-doc"}]
 
   (is (db/read? d "/cells"))
-  (is (db/write? d "/cells/matt" doc))
-  (is (false? (db/write? d "/cells/pete" doc))))
+  (is (db/set? d "/cells/matt" doc))
+  (is (false? (db/set? d "/cells/pete" doc))))
 
 (deftest usage
   (testing "fire-db"
