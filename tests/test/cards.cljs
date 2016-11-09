@@ -1,6 +1,5 @@
 (ns test.cards
   (:require [devcards.core :as devcards :include-macros true]
-            [static.targaryen]
             [firelisp.tests.a-simple-example]
             [firelisp.tests.db]
             [firelisp.tests.rules]

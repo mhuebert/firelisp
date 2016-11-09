@@ -1,5 +1,6 @@
 (ns firelisp.common
   (:require
+    [firelisp.template :as t]
     [clojure.walk :as walk]))
 
 (defn convert-quotes [form]
@@ -8,59 +9,8 @@
                             (= (first x) 'quote)
                             (not (and (symbol? (second x))
                                       (= 2 (count x)))))
-                     (cons 'firelisp.common/template (rest x))
+                     (cons 'firelisp.template/template (rest x))
                      x)) form))
 
-;template quoting:
-;
-;https://github.com/brandonbloom/backtick
-;Copyright © 2012 Brandon Bloom
-;Distributed under the Eclipse Public License, the same as Clojure.
-;Modified 2016 Matthew Huebert
-
-(def ^:dynamic ^:private *gensyms*)
-
-(defn- resolve-sym [sym]
-  (let [ns (namespace sym)
-        n (name sym)]
-    (if (and (not ns) (= (last n) \#))
-      (if-let [gs (@*gensyms* sym)]
-        gs
-        (let [gs (gensym (str (subs n 0 (dec (count n))) "__auto__"))]
-          (swap! *gensyms* assoc sym gs)
-          gs))
-      sym)))
-
-(defn unquote? [form]
-  (and (seq? form) (= (first form) 'clojure.core/unquote)))
-
-(defn unquote-splicing? [form]
-  (and (seq? form) (= (first form) 'clojure.core/unquote-splicing)))
-
-(defn- quote-fn* [form]
-  (cond
-    (symbol? form) `'~(resolve-sym form)
-    (unquote? form) (second form)
-    (unquote-splicing? form) (throw "splice not in list")
-    (record? form) `'~form
-    (coll? form)
-    (let [xs (if (map? form) (apply concat form) form)
-          parts (for [x xs]
-                  (if (unquote-splicing? x)
-                    (second x)
-                    [(quote-fn* x)]))
-          cat (doall `(concat ~@parts))]
-      (cond
-        (vector? form) `(vec ~cat)
-        (map? form) `(apply hash-map ~cat)
-        (set? form) `(set ~cat)
-        (seq? form) `(apply list ~cat)
-        :else (throw "Unknown collection type")))
-    :else `'~form))
-
-(defmacro template [form]
-  (binding [*gensyms* (atom {})]
-    (quote-fn* form)))
-
 (defmacro with-template-quotes [& forms]
-  `(do ~@(convert-quotes forms)))
+  (t/template (do ~@(convert-quotes forms))))

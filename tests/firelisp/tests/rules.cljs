@@ -6,7 +6,6 @@
     [firelisp.rules :refer [compile add]]
     [firelisp.paths :refer [parse-path]])
   (:require-macros
-    [firelisp.common :refer [template]]
     [cljs.test :refer [is testing async]]))
 
 
@@ -41,7 +40,7 @@
           (compile (at "cell"
                        {:read true}
                        (at "owner"
-                               {:write '(= auth.uid data)})))
+                           {:write '(= auth.uid next-data)})))
           {"cell" {".read" "true"
                    "owner" {".write" "(auth.uid === newData.val())"}}})))
 
@@ -188,11 +187,11 @@
     (let [rules (compile (at "/"
                              {:write true}
                              (at "auth-uid"
-                                     {:validate '(= data auth.uid)})
+                                 {:validate '(= next-data auth.uid)})
                              (at "number"
-                                     {:validate '(number? data)})
+                                 {:validate '(number? next-data)})
                              (at "string"
-                                     {:validate '(string? data)})))
+                                 {:validate '(string? next-data)})))
           write? (partial t/write? {} rules)]
 
       (is (write? {:uid "frank"} "/auth-uid" "frank"))
@@ -212,21 +211,21 @@
 
   (testing "Rule composition"
     (at "/"
-        (is (= (-> (at "/x/y" (add :delete '(= data auth.uid)))
+        (is (= (-> (at "/x/y" (add :delete '(= next-data auth.uid)))
                    (get-in ["x" "y" :delete]))
-               '#{(= data auth.uid)}))))
+               '#{(= next-data auth.uid)}))))
 
   (testing "Priors"
 
 
     (is (= (-> (at "y/$wow"
-                   {:write '(= (get root "x") true)})
+                   {:write '(= (get next-root "x") true)})
                compile
                (get-in ["y" "$wow" ".write"]))
            "(newData.parent().parent().child('x').val() === true)"))
 
     (is (= (-> (at "y/z"
-                   {:write '(= (prior (get root "x")) true)})
+                   {:write '(= (get prev-root "x") true)})
                compile
                (get-in ["y" "z" ".write"]))
            "(root.child('x').val() === true)")))
@@ -274,7 +273,7 @@
     (is (= (t/read? {} (compile (at "cell" {:read true})) nil "/cell") true)))
 
   (testing "rules: {:read '(= auth.uid data.owner)}, data: {:cell {:owner 'mhuebert'}}"
-    (let [rules (compile (at "/" {:read '(= auth.uid (get data "owner"))}))
+    (let [rules (compile (at "/" {:read '(= auth.uid (get next-data "owner"))}))
           data {:owner "mhuebert"}
           read? (partial t/read? data rules)]
 
@@ -288,7 +287,7 @@
   (testing "server value"
     (let [rules (compile (at "/"
                              {:write    true
-                                  :validate '(= data now)}))]
+                              :validate '(= next-data now)}))]
       (is (false? (t/write? {} rules nil "/" (dec (.now js/Date)))))
       (is (t/write? {} rules nil "/" {".sv" "timestamp"}))))
 

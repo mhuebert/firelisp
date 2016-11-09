@@ -109,8 +109,8 @@
       {:read     true
        :write    '(= auth.uid $userid)
        :validate {:title '(and
-                            (string? data)
-                            (< (length data) 100))}})
+                            (string? next-data)
+                            (< (length next-data) 100))}})
   ```
 
 
@@ -132,7 +132,7 @@
   (at \"/\"
     {:write true}
     (at \"/title\"
-      {:validate '(string? data)})) ;; this will always be enforced, unless data is `nil`.
+      {:validate '(string? next-data)})) ;; this will always be enforced, unless next-data is `nil`.
  ```
 
  Note that validation rules are ignored for paths that are set to null, so deletion rules must always be written at least one level 'up' from the relevant node.
@@ -154,48 +154,56 @@
      ;; :create and :delete operations will be allowed if the :write rule passes
   ```"))
 
-(defcard Basic-Operators
+(defcard Rule-Expressions
 
   (mixed
-    (md "All expressions in FireLisp must ultimately expand to the following forms, which have close Firebase Rule equivalents.")
+    (md "Below are valid FireLisp forms and their Firebase equivalents.")
     [:table.code-compare
      {:style {:width "100%"}}
      [:tbody
       [:tr
        [:td {:style {:padding "0 20px"}} (md "**Form**")]
-       [:td {:style {:padding "0 20px"}} (md "**FireLisp Example**")]
-       [:td {:style {:padding "0 20px"}} (md "**Firebase Rule Equivalent**")]]
+       [:td {:style {:padding "0 20px"}} (md "**Example**")]
+       [:td {:style {:padding "0 20px"}} (md "**Emitted Firebase Rules**")]]
 
 
-      (row "Using `data` and `root`, you can easily read data from the current rule path, or anywhere else in the database.")
+      (row "In `:write` and `:validate` we specify `prev-` and `next-` variants of `data` and `root` to read from the pre- or post-operation state of the database. In `:write` rules, we usually want to read from the previous value of the database (for example, to see whether a user _already_ has the appropriate role for the operation), whereas in `:validate` rules we usually look at incoming values.")
 
       (form-example-compile
-        "data"
-        "root")
+        "next-data")
 
       (let [expr "(at \"/users/$userid\"
-  root)"
+  next-root)"
             result (atom)]
         (at "/users/$userid"
-            (reset! result (compile-expr 'root)))
+            (reset! result (compile-expr 'next-root)))
         [:tr
-         [:td.td-compare-0 (code "root")]
+         [:td.td-compare-0 (code "next-root")]
          [:td (code expr)]
          [:td (dc/code-highlight @result "javascript")]])
 
-      (row "`data` and `root` refer to the **next** state of the database, _as if the attempted write has succeeded_. This is usually best for `:validate` rules, but in `:write` rules you often want to use `prior` to read the previous state of the database:")
-
       (form-example-compile
-        "(prior data)"
-        "(prior root)")
+        "prev-data"
+        "prev-root")
+
+      (row "In `:read` rules, you can use `data` and `root`, as there are no before and after states.")
+
+      (binding [firelisp.compile/*mode* :read]
+        (form-example-compile
+          "data"
+          "root"))
 
       (row "To read child nodes, use `get` and `get-in`. As in Clojure, you can pass an additional argument to be returned if the requested key does not exist. `parent` moves one level up the database path.")
 
       (form-example-compile
-        "(get data \"title\")"
-        "(get data \"title\" \"404\")"
-        "(get-in root [\"settings\" auth.uid \"email\"])"
-        "(parent data)")
+        "(get next-data \"title\")"
+        "(get next-data
+  \"title\" \"404\")"
+        "(get-in next-root
+  [\"settings\"
+   auth.uid
+   \"email\"])"
+        "(parent next-data)")
 
 
       (row "String methods")
@@ -212,11 +220,11 @@
 
       (row "Types")
       (form-example-compile
-        "(exists? data)"
-        "(number? data)"
-        "(string? data)"
-        "(boolean? data)"
-        "(object? data)")
+        "(exists? next-data)"
+        "(number? next-data)"
+        "(string? next-data)"
+        "(boolean? next-data)"
+        "(object? next-data)")
 
       (row "Logic")
       (form-example-compile
@@ -248,7 +256,7 @@
       While `get` and `get-in` are preferred, `child` is also a valid FireLisp form:")
 
       (form-example-compile
-        "(child data \"x\" \"y\")")
+        "(child next-data \"x\" \"y\")")
 
       ]])
 
@@ -268,19 +276,19 @@
 
       (form-example-expand
         "(let [x 4]
-          (+ x 1))"
-        "(-> data
-            parent
-            (child \"title\")
-            lower-case)"
+  (+ x 1))"
+        "(-> next-data
+  parent
+  (child \"title\")
+  lower-case)"
         "(cond 1 2
-              3 4
-              :else 5)"
-        "(in? #{\"a\" \"b\"} data)"
+  3 4
+  :else 5)"
+        "(in? #{\"a\" \"b\"} next-data)"
 
-        "(every-> data
-                 string?
-                 (contains? \"123\"))"
+        "(every-> next-data
+  string?
+  (contains? \"123\"))"
 
         )]]
 

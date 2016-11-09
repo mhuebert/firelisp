@@ -2,8 +2,8 @@
   (:require [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
             [clojure.set :refer [subset?]]
             [firelisp.compile :refer [*rule-fns*]]
-            [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
-  (:require-macros [firelisp.rules :refer [rulefn]]))
+            [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]
+            [firelisp.rules :refer-macros [rulefn]]))
 
 (defn simplify [sym]
   (with-template-quotes
@@ -31,29 +31,8 @@
                          '+     (simplify '+)
                          '*     (simplify '*)})
 
-(defn condition-preds [target]
-  (with-template-quotes
-    {:create '(and (nil? (prior ~target)) (exists? ~target))
-     :update '(and (not= nil (prior ~target))
-                   (not= nil ~target)
-                   (not= (prior ~target) ~target))
-     :delete '(and (exists? (prior ~target)) (not (exists? ~target)))}))
-
 (rulefn when [pred body]
         '(if ~pred ~body true))
-
-(rulefn on [& args]
-        (let [target? (not (or (keyword? (first args))
-                               (vector? (first args))))
-              target (if target? (first args) 'data)
-              conditions (if target? (second args) (first args))
-              body (last args)
-              conditions (-> (condition-preds target)
-                             (select-keys (if (vector? conditions) conditions [conditions]))
-                             vals)]
-          ;(prn "on" args)
-          #_(subset? (set conditions) #{:create :update :delete})
-          '(when (or ~@conditions) ~body)))
 
 (rulefn cond [& args]
         (loop [pairs (drop-last (partition 2 args))
@@ -110,15 +89,15 @@
         '(and (string? ~s)
               (between ~s ~min ~max)))
 
-(rulefn new? [d]
-        '(and (= (prior ~d) nil)
-              (exists? ~d)))
+(rulefn new? []
+        '(and (= prev-data nil)
+              (exists? next-data)))
 
 (rulefn nil? [d]
         '(= ~d nil))
 
-(rulefn unchanged? [d]
-        '(= ~d (prior ~d)))
+(rulefn unchanged? []
+        '(= next-data prev-data))
 
 (rulefn get-in
         ([target path]

@@ -19,28 +19,29 @@
     (are [expr s]
       (= (expand expr) s)
 
-      '(get data "users") '(child data "users")
-      '(get data "users" "default")
+      '(get next-data "users") '(child next-data "users")
+      '(get next-data "users" "default")
 
-      '(if (exists? (child data "users"))
-         (child data "users")
+      '(if (exists? (child next-data "users"))
+         (child next-data "users")
          "default")
-      '(get-in data ["address" "zip"])
-      '(child data "address" "zip")
+      '(get-in next-data ["address" "zip"])
+      '(child next-data "address" "zip")
 
-      '(get-in root ["users" auth.uid])
-      '(child root "users" auth.uid))
+      '(get-in next-root ["users" auth.uid])
+      '(child next-root "users" auth.uid))
 
-    (is (= (expand '(get-in root ["permissions" (get-in root ["users" auth.uid "role"])]))
-           (expand '(let [current-user-role (get-in root ["users" auth.uid "role"])]
-                      (get-in root ["permissions" current-user-role])))
-           '(child root "permissions" (child root "users" auth.uid "role")))
+    (is (= (expand '(get-in next-root ["permissions" (get-in next-root ["users" auth.uid "role"])]))
+           (expand '(let [current-user-role (get-in next-root ["users" auth.uid "role"])]
+                      (get-in next-root ["permissions" current-user-role])))
+           '(child next-root "permissions" (child next-root "users" auth.uid "role")))
         "Nested `get-in`, also w/ `let`")
 
     )
 
   (rules/rulefn admin? [uid]
-                '(= (child root "users" ~uid "admin") true))
+                '(= (child next-root "users" ~uid "admin") true))
+
 
   (testing "Functions"
     (at "/x"
@@ -60,8 +61,8 @@
     (is (= (compile-expr '(let [x auth.token
                            y "matt"]
                        (let [x auth.uid]
-                         (and (= (get-in root ["admin" "uid"]) x)
-                              (= (get-in root ["admin" "name"]) y)))))
+                         (and (= (get-in next-root ["admin" "uid"]) x)
+                              (= (get-in next-root ["admin" "name"]) y)))))
            "((newData.child('admin' + '/' + 'uid').val() === auth.uid) && (newData.child('admin' + '/' + 'name').val() === 'matt'))")))
 
   "**Macros**"
@@ -82,8 +83,8 @@
            '(lower-case (child (parent next-data) "x")))))
 
   (testing "every->"
-    (is (= (expand '(every-> data string? (= "matt")))
-           '(and (string? data) (= data "matt")))))
+    (is (= (expand '(every-> next-data string? (= "matt")))
+           '(and (string? next-data) (= next-data "matt")))))
 
   (testing "in?"
 
@@ -93,7 +94,7 @@
                    (at "users/$uid/roles"
                        {:validate '(in? #{"admin"
                                           4
-                                          auth.uid} data)}))
+                                          auth.uid} next-data)}))
                  (db/auth! {:uid "my-uid"}))]
 
       (is (db/set-data db "users/matt/roles" "admin")

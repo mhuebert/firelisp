@@ -5,7 +5,7 @@
 (def ^:dynamic *path* [])
 (def ^:dynamic *rule-fns* (atom {}))
 
-(def terminal-forms '#{and or = not= + - * / % > < >= <= do prior not if exists? number? string? boolean? object? parent child contains-key? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
+(def terminal-forms '#{and or = not= + - * / % > < >= <= do not if exists? number? string? boolean? object? parent child contains-key? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
 
 (defn expand-1 [fns form]
   (postorder-replace
@@ -51,25 +51,15 @@
   (str "[" (string/join ", " (map emit args)) "]"))
 
 (defmethod emit :list
-  [{:keys [operator args prior as-snapshot?] :as n}]
+  [{:keys [operator args as-snapshot?] :as n}]
   (let [arg-count (count args)]
     (case operator
+      ( + - / * % > < >= <=) (infix (str operator) n)
       and (infix "&&" n)
       or (infix "||" n)
       = (infix "===" n)
       not= (infix "!==" n)
-      + (infix "+" n)
-      - (infix "-" n)
-      * (infix "*" n)
-      / (infix "/" n)
-      % (infix "%" n)
-      > (infix ">" n)
-      < (infix "<" n)
-      >= (infix ">=" n)
-      <= (infix "<=" n)
       do (emit (last args))
-      prior (do (assert (= 1 arg-count))
-                (emit (last args)))
       not (do (assert (= 1 arg-count))
               (str "!" (emit (last args))))
       if (do (assert (#{2 3} arg-count))
@@ -102,8 +92,12 @@
 
 (defn atom-type [form]
   (case form
-    data :snapshot
-    root :snapshot
+    (data
+      next-data
+      prev-data
+      root
+      next-root
+      prev-root) :snapshot
     nil :nil
     (= form 'now) :timestamp
     (cond (number? form) :number
@@ -115,7 +109,7 @@
           :else :other)))
 
 (defmethod emit :atom
-  [{:keys [value mode as-snapshot? prior atom-type path]}]
+  [{:keys [value mode as-snapshot? atom-type path]}]
   (case atom-type
     :nil "null"
     :timestamp "now"
@@ -125,13 +119,27 @@
       :keyword) (str "'" (name value) "'")
     (:boolean
       :symbol) (str value)
-    :snapshot (cond-> (case value
-                        data (if (or (= mode :read) prior) "data" "newData")
-                        root (if (or (= mode :read) prior) "root" (str "newData"
-                                                                       (apply str (take (count *path*)
-                                                                                        (repeat ".parent()"))))))
-                      (not as-snapshot?) (str ".val()"))
-    (str "<" (when prior "prior: ") value ">")))
+    :snapshot (cond->
+                (try (case mode
+                       :read (case value
+                               (data
+                                 next-data
+                                 prev-data) "data"
+                               (root
+                                 next-root
+                                 prev-root) "root")
+                       :write (case value
+                                prev-data "data"
+                                next-data "newData"
+                                prev-root "root"
+                                next-root (str "newData"
+                                               (apply str (take (count *path*)
+                                                                (repeat ".parent()"))))))
+                     (catch js/Error e
+                       (prn (str "Invalid data reference for rule type: " mode ", " value))
+                       (throw e)))
+                (not as-snapshot?) (str ".val()"))
+    (throw (js/Error. (str "Unrecognized atom type: " atom-type ", " value)))))
 
 (defn node-type [form]
   (cond (vector? form) :vector
@@ -160,14 +168,13 @@
 
 (defn no-op? [form]
   (and (seq? form)
-       (#{'prior 'do} (first form))))
+       (= 'do (first form))))
 
 (defmethod node :list
   [opts form]
   (let [no-op? (no-op? form)
         first-arg-as-snapshot? (or (snapshot-method? (first form))
                                    (and (:as-snapshot? opts) no-op?))
-        opts (cond-> opts (= 'prior (first form)) (assoc :prior true))
         args (cons (node (cond-> opts
                                  first-arg-as-snapshot? (assoc :as-snapshot? true)) (first (rest form)))
                    (map (partial node opts) (drop 2 form)))]
@@ -192,11 +199,11 @@
             :atom-type atom-type}
            opts)))
 
+(def ^:dynamic *mode* :write)
 (defn compile-expr
   ([expr] (compile-expr {} expr))
   ([opts expr]
-   (let [opts (merge {:prior        false
-                      :mode         :write
+   (let [opts (merge {:mode         *mode*
                       :as-snapshot? false} opts)]
      (->> expr
           (expand)

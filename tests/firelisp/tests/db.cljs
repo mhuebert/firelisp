@@ -28,8 +28,6 @@
                        (at "$uid"
                            {:validate '(signed-in?)}))))]
 
-
-
       (is (= (-> db
                  (db/rules
                    {"/open"

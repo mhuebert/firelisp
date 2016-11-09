@@ -59,15 +59,24 @@
     [& args]
     (reduce merge-in* nil args)))
 
+(defn prior [target]
+  (case target
+    (data
+      next-data
+      prev-data) 'prev-data
+    (root
+      next-root
+      prev-root) 'prev-root))
+
 (defn condition-preds [target]
   (with-template-quotes
-    {:create '(and (nil? (prior ~target)) (exists? ~target))
-     :update '(and (not= nil (prior ~target))
+    {:create '(and (nil? ~(prior target)) (exists? ~target))
+     :update '(and (not= nil ~(prior target))
                    (not= nil ~target)
-                   (not= (prior ~target) ~target))
-     :delete '(and (exists? (prior ~target)) (not (exists? ~target)))}))
+                   (not= ~(prior target) ~target))
+     :delete '(and (exists? ~(prior target)) (not (exists? ~target)))}))
 
-(def cud-preds (condition-preds 'data))
+(def cud-preds (condition-preds 'next-data))
 
 (defn log [x] (prn x) x)
 
@@ -76,7 +85,7 @@
   ([{:keys [create read update delete index write validate children] :as rules} path depth]
    (with-template-quotes
      (let [validate (cond-> validate
-                            (seq children) (disj '(object? data)))]
+                            (seq children) (disj '(object? next-data)))]
        (merge
          (binding [*path* path]
            (cond-> {}
@@ -97,10 +106,10 @@
                    (seq index) (assoc ".indexOn" (vec index))
                    (or (seq validate)
                        (seq children)) (assoc ".validate"
-                                              (compile-expr {:mode :validate}
+                                              (compile-expr {:mode :write}
                                                             (cond-> '(and)
                                                                     (seq children)
-                                                                    (append '(object? data [~@children]))
+                                                                    (append '(object? next-data [~@children]))
                                                                     (seq validate)
                                                                     (append '(do ~@validate)))))))
          (reduce-kv (fn [m k v]
@@ -112,7 +121,7 @@
 
 (defn wrap-rule [rule]
   (with-template-quotes
-    (if (symbol? rule) '(~rule data)
+    (if (symbol? rule) '(~rule next-data)
                        rule)))
 
 (defn validate
@@ -138,4 +147,4 @@
      (when (empty? (filter #(= \$ (first (name %))) (keys child-rules)))
        (add "$other" :validate false))
 
-     (add :validate '(object? data)))))
+     (add :validate '(object? next-data)))))

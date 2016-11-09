@@ -36,14 +36,14 @@
   :cljsbuild {:builds [{:id           "devcards"
                         :source-paths ["src" "tests"]
                         :figwheel     {:devcards true}
-                        :compiler     {:main                 "test.runner"
+                        :compiler     {:main                 "test.cards"
                                        :asset-path           "js/compiled/devcards_out"
                                        :output-to            "resources/public/js/compiled/firelisp_devcards.js"
                                        :output-dir           "resources/public/js/compiled/devcards_out"
                                        :source-map-timestamp true}}
                        {:id           "test"
                         :source-paths ["src" "tests"]
-                        :compiler     {:main                 "test.runner"
+                        :compiler     {:main                 test.runner
                                        :asset-path           "js/compiled/test_out"
                                        :output-to            "target/test.js"
                                        :output-dir           "target/test_out"
