@@ -2,7 +2,6 @@
   (:require
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at throws]]
-    [firelisp.targaryen :as t]
     [firelisp.rules :refer [compile add]]
     [firelisp.paths :refer [parse-path]])
   (:require-macros
@@ -59,44 +58,44 @@
 
         (throws (->
                   (db/auth! @d {:uid "y"})
-                  (db/set-data "/" "new-val"))
+                  (db/set "/" "new-val"))
                 "y can't create")
 
         (is (swap! d #(-> (db/auth! % {:uid "x"})
-                          (db/set-data "/" "new-val")))
+                          (db/set "/" "new-val")))
             "x can create")
 
         (is (swap! d #(-> (db/auth! % {:uid "x"})
-                          (db/set-data "/" "other-val")))
+                          (db/set "/" "other-val")))
             "x can update")
 
         (is (swap! d #(-> (db/auth! % {:uid "y"})
-                          (db/set-data "/" "other-val-2")))
+                          (db/set "/" "other-val-2")))
             "y can update")
 
         (is (swap! d #(-> (db/auth! % {:uid "x"})
-                          (db/set-data "/" nil)))
+                          (db/set "/" nil)))
             "x can delete")
 
         (is (= nil (db/read @d "/")))
 
         (throws (-> (db/auth! @d {:uid "y"})
-                    (db/set-data "/" "new-val"))
+                    (db/set "/" "new-val"))
                 "y can't create - TARGAR: when val has been set to nil...")
 
         (reset! d (-> db/blank
                       (db/rules (at "/" {:create '(= auth.uid "x")}))))
 
         (is (swap! d #(-> (db/auth! % {:uid "x"})
-                          (db/set-data "/" "new-val")))
+                          (db/set "/" "new-val")))
             "can create")
 
         (throws (-> (db/auth! @d {:uid "x"})
-                    (db/set-data "/" "other-val"))
+                    (db/set "/" "other-val"))
                 "can't update")
 
         (throws (-> (db/auth! @d {:uid "x"})
-                    (db/set-data "/" nil))
+                    (db/set "/" nil))
                 "can't delete")
 
 
@@ -107,7 +106,7 @@
                                          :create '(= auth.uid "x")}))))
 
         (is (swap! d #(-> (db/auth! % {:uid "x"})
-                          (db/set-data "/" "new-val")))
+                          (db/set "/" "new-val")))
             "can't create")
 
         ))
@@ -132,21 +131,21 @@
 
         ; can't create
         (throws (-> (db/auth! @d {:uid "x"})
-                    (db/set-data "/" "new-val")))
+                    (db/set "/" "new-val")))
 
         (swap! d db/set! "/" "old-val")
 
         ; can update
         (is (-> (db/auth! @d {:uid "x"})
-                (db/set-data "/" "new-val")))
+                (db/set "/" "new-val")))
 
         ; can't update as y
         (throws (-> (db/auth! @d {:uid "y"})
-                    (db/set-data "/" "new-val")))
+                    (db/set "/" "new-val")))
 
         ; can't delete
         (throws (-> (db/auth! @d {:uid "x"})
-                    (db/set-data "/" nil)))
+                    (db/set "/" nil)))
 
         ; now let's set a general :write => true rule...
         (reset! d (-> @d
@@ -155,28 +154,28 @@
 
         ;; the :update rule is not triggered on :create, so anybody can create:
         (is (swap! d #(-> (db/auth! % nil)
-                          (db/set-data "/" "new-val"))))
+                          (db/set "/" "new-val"))))
         ;; but we can't update unless we have uid of 'x':
-        (throws (swap! d db/set-data "/" "other-val"))
+        (throws (swap! d db/set "/" "other-val"))
         (is (-> (db/auth! @d {:uid "x"})
-                (db/set-data "/" "other-val")))))
+                (db/set "/" "other-val")))))
 
     (testing "Delete"
       (let [d (atom (db/rules db/blank (at "/" {:write  true
                                                 :delete '(= auth.uid "x")})))]
 
-        (is (swap! d db/set-data "/" "new-data")
+        (is (swap! d db/set "/" "new-data")
             "create")
 
-        (is (swap! d db/set-data "/" "other-data")
+        (is (swap! d db/set "/" "other-data")
             "update")
         ; can't delete as y
         (throws (-> (db/auth! @d {:uid "y"})
-                    (db/set-data "/" nil))
+                    (db/set "/" nil))
                 "can't delete as y")
 
         (is (-> (db/auth! @d {:uid "x"})
-                (db/set-data "/" nil))
+                (db/set "/" nil))
             " can delete as x")
 
         )
@@ -184,24 +183,28 @@
       ))
 
   (testing "validating types"
-    (let [rules (compile (at "/"
-                             {:write true}
-                             (at "auth-uid"
-                                 {:validate '(= next-data auth.uid)})
-                             (at "number"
-                                 {:validate '(number? next-data)})
-                             (at "string"
-                                 {:validate '(string? next-data)})))
-          write? (partial t/write? {} rules)]
+    (let [db (-> db/blank
+                 (db/rules
+                   (at "/"
+                       {:write true}
+                       (at "auth-uid"
+                           {:validate '(= next-data auth.uid)})
+                       (at "number"
+                           {:validate '(number? next-data)})
+                       (at "string"
+                           {:validate '(string? next-data)}))))]
 
-      (is (write? {:uid "frank"} "/auth-uid" "frank"))
-
-      (is (not (write? nil "/number" "frank")))
-      (is (write? nil "/number" 1))
+      (is (-> (db/set! db "/" {:uid "frank"})
+              (db/set "/auth-uid" "frank")))
 
 
-      (is (not (write? nil "/string" 1)))
-      (is (write? nil "/string" "frank"))))
+
+      (is (not (db/set? db "/number" "frank")))
+      (is (db/set? db "/number" 1))
+
+
+      (is (not (db/set? db "/string" 1)))
+      (is (db/set? db "/string" "frank"))))
 
   (testing "Indexes"
     (is (= (compile (at "/"
@@ -268,28 +271,31 @@
         :rules))
 
   (testing "(path \"cell\" (authorize {:read true}))"
-
-    (is (= (t/read? {} (compile (at "cell" {:read true})) nil "/") false))
-    (is (= (t/read? {} (compile (at "cell" {:read true})) nil "/cell") true)))
+    (let [db (-> db/blank
+                 (db/rules (at "cell" {:read true})))]
+      (is (= (db/read? db "/") false))
+      (is (= (db/read? db "/cell") true))))
 
   (testing "rules: {:read '(= auth.uid data.owner)}, data: {:cell {:owner 'mhuebert'}}"
-    (let [rules (compile (at "/" {:read '(= auth.uid (get next-data "owner"))}))
-          data {:owner "mhuebert"}
-          read? (partial t/read? data rules)]
-
-      (is (= false (read? nil "/")))
-      (is (= true (read? {:uid "mhuebert"} "/")))))
+    (let [db (-> db/blank
+                 (db/rules (at "/" {:read '(= auth.uid (get next-data "owner"))}))
+                 (db/set! "/" {:owner "mhuebert"}))]
+      (is (= false (db/read? db "/")))
+      (is (= true (db/read? (db/auth! db {:uid "mhuebert"}) "/")))))
 
   (testing "path variables"
-    (is (true? (t/read? {} (compile (at "$user" {:read '(= $user auth.uid)})) {:uid "mhuebert"} "/mhuebert")))
-    (is (false? (t/read? {} (compile (at "$user" {:read '(= $user auth.uid)})) {:uid "frank"} "/mhuebert"))))
+    (let [db (-> db/blank
+                 (db/rules (at "$user" {:read '(= $user auth.uid)})))]
+      (is (true? (db/read? (db/auth! db {:uid "mhuebert"}) "/mhuebert")))
+      (is (false? (db/read? (db/auth! db {:uid "frank"}) "/mhuebert")))))
 
   (testing "server value"
-    (let [rules (compile (at "/"
-                             {:write    true
-                              :validate '(= next-data now)}))]
-      (is (false? (t/write? {} rules nil "/" (dec (.now js/Date)))))
-      (is (t/write? {} rules nil "/" {".sv" "timestamp"}))))
+    (let [db (-> db/blank
+                 (db/rules (at "/"
+                               {:write    true
+                                :validate '(= next-data now)})))]
+      (is (false? (db/set? db "/" (dec (.now js/Date)))))
+      (is (db/set? db "/" {".sv" "timestamp"}))))
 
   (testing "validations"
     (testing "Default behaviour: 'validate' makes children required, and disallows non-specified children."

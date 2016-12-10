@@ -3,8 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at throws isn't]]
     [firelisp.paths :refer [parse-path]]
-    [firelisp.rules :refer [compile add]]
-    [firelisp.targaryen :as targar])
+    [firelisp.rules :refer [compile add]])
   (:require-macros
     [cljs.test :refer [is testing]]
     [firelisp.common :refer [with-template-quotes]]))
@@ -23,21 +22,21 @@
                     ))
 
       (is (swap! d #(-> (db/auth! % {:uid "x"})
-                        (db/set-data "/" "new-val")))
+                        (db/set "/" "new-val")))
           "x can create")
 
       (is (swap! d #(-> (db/auth! % {:uid "y"})
-                        (db/set-data "/" "other-val")))
+                        (db/set "/" "other-val")))
           "y can update")
 
       (is (swap! d #(-> (db/auth! % {:uid "x"})
-                        (db/set-data "/" nil)))
+                        (db/set "/" nil)))
           "x can delete")
 
       (is (= nil (db/read @d "/")))
 
       (throws (-> (db/auth! @d {:uid "y"})
-                  (db/set-data "/" "new-val"))
+                  (db/set "/" "new-val"))
               "y can't create"))
 
     (let [d (atom (-> db/blank
@@ -70,7 +69,7 @@
       (is (= (js->clj (db/read @d "/")) {"x" 1}))
       (is (= (db/read @d "/x") 1)))
 
-    (let [snap (.snapshot (targar/database {}) "/")]
+    (let [snap (.snapshot (db/database {}) "/")]
       (is (false? (.exists snap)))
       (is (= nil (.val snap))))
 

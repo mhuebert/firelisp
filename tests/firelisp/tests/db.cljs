@@ -5,20 +5,6 @@
   (:require-macros
     [cljs.test :refer [is testing]]))
 
-(let [d (-> db/blank
-            (db/defn signed-in? [] '(not= auth nil))
-            (db/rules
-              (at "cells"
-                  {:read '(signed-in?)}
-                  (at "$uid"
-                      {:write '(= auth.uid $uid)})))
-            (db/auth! {:uid "matt"}))
-      doc {:title "my-doc"}]
-
-  (is (db/read? d "/cells"))
-  (is (db/set? d "/cells/matt" doc))
-  (is (false? (db/set? d "/cells/pete" doc))))
-
 (deftest usage
   (testing "fire-db"
     (let [db (-> db/blank
@@ -33,7 +19,7 @@
                    {"/open"
                     {:read  true
                      :write true}})
-                 (db/set-data "/open/1" {:name "Matt"})
+                 (db/set "/open/1" {:name "Matt"})
                  (db/read "/open/1/name"))
              "Matt"))
 
@@ -54,7 +40,7 @@
         (is (db/read? DB "users/matt"))
 
         (is (= "Matt" (-> DB
-                          (db/set-data "users/matt" {:name "Matt"})
+                          (db/set "users/matt" {:name "Matt"})
                           (db/read "users/matt/name"))))
 
         (is (false? (db/read? DB "/"))))

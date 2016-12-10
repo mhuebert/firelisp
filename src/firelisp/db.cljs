@@ -1,23 +1,37 @@
 (ns firelisp.db
-  (:refer-clojure :exclude [set?])
+  (:refer-clojure :exclude [set? set])
   (:require [static.targaryen]
             [firelisp.rules :refer [compile merge-rules] :include-macros true]
             [firelisp.standard-lib]
-            [goog.object :as gobj]
-            [firelisp.targaryen :as targar])
+            [goog.object :as gobj])
   (:require-macros [firelisp.db]))
 
 (defn log [x]
   #_(apply js/console.log args)
   x)
 
+(defn ensure-rules [rules]
+  (if (and rules (gobj/containsKey rules "tryRead"))
+    rules
+    (try
+      (.ruleset js/targaryen (clj->js {:rules (or rules {})}))
+      (catch js/Error e
+        (.error js/console "Ensure-Rules Error!" e)
+        (prn rules)))))
+
+(defn database
+  ([data] (database data (.now js/Date)))
+  ([data now]
+   (database (clj->js {"rules" {}}) data now))
+  ([rules data now]
+   (.database js/targaryen rules (clj->js data) now)))
+
 (def blank
-  {:rules          {}
-   :compiled-rules {}
-   :rule-set       (targar/ensure-rules {})
-   :database       (targar/database {} (.now js/Date))
-   :functions      @firelisp.compile/*rule-fns*
-   :now            (.now js/Date)})
+  {:rules     {}
+   :rule-set  (ensure-rules {})
+   :database  (database {} (.now js/Date))
+   :functions @firelisp.compile/*rule-fns*
+   :now       (.now js/Date)})
 
 (defn compiled-rules
   ([db] (compiled-rules db (:rules db)))
@@ -28,54 +42,57 @@
 (defn register-rules [db rules]
   (let [merged-rules (merge-rules (:rules db) rules)
         compiled-rules (compiled-rules db merged-rules)
-        rule-set (targar/ensure-rules compiled-rules)]
+        rule-set (ensure-rules compiled-rules)]
     (assoc db
+      :database (.with (:database db) (clj->js {:rules {"rules" compiled-rules}}))
       :rules merged-rules
-      :compiled-rules compiled-rules
-      :rule-set rule-set)))
+      :rule-set rule-set
+      :compiled-rules compiled-rules)))
 
 (defn try-write
-  ([db path data] (try-write db path data nil))
-  ([{:keys [database rule-set auth]} path data now]
-   (.tryWrite rule-set path database (clj->js data) auth nil nil nil now)))
+  ([db path data] (try-write db path data (.now js/Date)))
+  ([{:keys [database]} path data now]
+   (.write database path (clj->js data) nil now)))
 
 (defn set? [& args]
-  (-> (apply try-write args)
-      (gobj/get "allowed")
-      true?))
+  (true? (-> (apply try-write args)
+             (gobj/get "allowed"))))
 
 (defn try-patch
-  ([db path data] (try-write db path data nil))
-  ([{:keys [database rule-set auth]} path data now]
-   (.tryPatch rule-set path database (clj->js data) auth nil nil nil now)))
+  [{:keys [database]} path data & [now]]
+  (.update database path (clj->js data) (or now (.now js/Date))))
 
 (defn update? [& args]
-  (-> (apply try-patch args)
-      (gobj/get "allowed")
-      true?))
+  (true? (-> (apply try-patch args)
+             (gobj/get "allowed"))))
 
-(defn write [mode {:keys [auth] :as db} path next-data]
-  (let [f (case mode :set try-write :update try-patch)
-        result (f db path (clj->js next-data))]
-    (if (gobj/get result "allowed")
-      (assoc db :database (gobj/get result "newDatabase")
+(defn write
+  [mode {:keys [database] :as db} path next-data now]
+  (let [result (case mode
+                 :set (.write database path (clj->js next-data) nil now)
+                 :update (.update database path (clj->js next-data) now))]
+    (if (.-allowed result)
+      (assoc db :database (.-newDatabase result)
                 :last-result result)
-      (do #_(log (.-info result))
-        #_(.log js/console result)
-        (throw (js/Error "write not allowed"))))))
+      (throw (js/Error "write not allowed")))))
 
-(def set-data (partial write :set))
+(def set (partial write :set))
 
 (defn set! [{:keys [database now] :as db} path next-data]
-  (assoc db :database (.set database path (clj->js next-data) now)))
+  (assoc db :database
+            (.with database (clj->js {"data" (.$set (.-root database) path (clj->js next-data) nil now)}))))
 
 (defn auth! [db auth]
-  (assoc db :auth (clj->js auth)))
+  (assoc db :database
+            (.with (:database db) (clj->js {"auth" auth}))))
 
 (def update-data (partial write :update))
 
 (defn try-read [{:keys [database rule-set auth]} path]
-  (.tryRead rule-set path database auth (new js/Date)))
+  (.read (.with database (clj->js {:rules rule-set
+                                   :auth  auth}))
+         path
+         (new js/Date)))
 
 (defn read [{:keys [database] :as db} path]
   (let [result (try-read db path)]

@@ -1,5 +1,6 @@
 (ns firelisp.standard-lib
   (:require [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
+            [clojure.walk]
             [clojure.set :refer [subset?]]
             [firelisp.compile :refer [*rule-fns*]]
             [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]

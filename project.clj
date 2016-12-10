@@ -17,9 +17,10 @@
 
                  [doo "0.1.7"]]
 
-  :npm {:dependencies [["targaryen" "mhuebert/targaryen#ef54563c"]
+  :npm {:dependencies [["targaryen" "goldibex/targaryen#b535ee0b"]
                        ["browserify" "13.1.0"]]
-        :package      {:scripts {:postinstall "buildTargaryen.sh"}}}
+        :package      {:scripts {:postinstall "./buildTargaryen.sh"}}
+        }
 
   :plugins [[lein-figwheel "0.5.3-2"]
             [lein-npm "0.6.2"]
@@ -49,7 +50,7 @@
                                        :output-dir           "target/test_out"
                                        :source-map-timestamp true
                                        :parallel-build       true
-                                       :optimizations        :simple}}
+                                       :optimizations        :none}}
                        {:id           "prod"
                         :source-paths ["src" "tests"]
                         :compiler     {:main          "test.cards"

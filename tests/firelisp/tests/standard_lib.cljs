@@ -97,13 +97,13 @@
                                           auth.uid} next-data)}))
                  (db/auth! {:uid "my-uid"}))]
 
-      (is (db/set-data db "users/matt/roles" "admin")
+      (is (db/set db "users/matt/roles" "admin")
           "in? with string")
-      (is (db/set-data db "users/matt/roles" 4)
+      (is (db/set db "users/matt/roles" 4)
           "in? with number")
-      (is (db/set-data db "users/matt/roles" "my-uid")
+      (is (db/set db "users/matt/roles" "my-uid")
           "in? with auth value")
-      (throws (db/set-data db "users/matt/roles" "other-string")
+      (throws (db/set db "users/matt/roles" "other-string")
               "value not contained in set")
-      (is (db/set-data db "users/matt/roles" nil)
+      (is (db/set db "users/matt/roles" nil)
           "careful - as a validate rule, nil is still allowed"))))
