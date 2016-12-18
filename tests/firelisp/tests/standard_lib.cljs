@@ -55,8 +55,8 @@
 
     ;; depracated anonymous fn/macro
     #_(is (= (let [destructure-test (f/macro [x & args] '(= ~x ~(last args)))]
-             (compile-expr (destructure-test "hello" "hello")))
-           "('hello' === 'hello')")))
+               (compile-expr (destructure-test "hello" "hello")))
+             "('hello' === 'hello')")))
 
   (testing "let"
 
@@ -157,4 +157,12 @@
       (is (not (db/set? db "users/matt/roles" "other-string"))
           "value not contained in set")
       (is (db/set db "users/matt/roles" nil)
-          "careful - as a validate rule, nil is still allowed"))))
+          "careful - as a validate rule, nil is still allowed")))
+
+  (testing "namespaced symbols"
+
+    (is (do
+          (f/defn color/black? [x] (= x "#000"))
+          (= (expand '(color/black? next-data.color))
+             '(= next-data.color "#000")))
+        "Define and use a function with a namespaced symbol")))

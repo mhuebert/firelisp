@@ -7,6 +7,10 @@
 
 (def terminal-forms '#{and or = not= + - * / % > < >= <= do not if exists? number? string? boolean? object? parent child has-key? upper-case lower-case in-string? starts-with? ends-with? matches? contains? replace length})
 
+(def munge-sym #(-> (str %)
+                    (string/replace "/" "__")
+                    (symbol)))
+
 (defn expand-1
   ([form] (expand-1 @*defs* form))
   ([fns form]
@@ -14,7 +18,9 @@
      (fn [expr]
        (if (seq? expr)
          (if-let [operator (some->> (first expr)
-                                    (get fns))]
+                                    (munge-sym)
+                                    (get fns)
+                                    (:fn))]
            (apply operator (rest expr))
            (do
              (when-not (contains? terminal-forms (first expr)) (prn "Operator not found: " (first expr)))

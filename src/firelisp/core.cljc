@@ -9,11 +9,17 @@
                [cljs.spec :as s :include-macros true]]
         :clj  [
     [clojure.core :as core]
+    [clojure.string :as string]
     [clojure.spec :as s]])))
 
 (def *defs* 'firelisp.env/*defs*)
 (def core-fn #?(:cljs 'cljs.core/fn
                 :clj  'clojure.core/fn))
+
+(core/defn munge-name [b]
+  (update b :name #(-> (str %)
+                       (string/replace "/" "__")
+                       symbol)  #_(comp symbol munge str)))
 
 (core/defn update-conf [{[arity] :bs :as conf} update-fn]
   (case arity
@@ -21,64 +27,48 @@
     :arity-n (update-in conf [:bs 1 :bodies] (core/fn [bodies]
                                                (map update-fn bodies)))))
 
-(core/defn template-wrap
+(core/defn macro-wrap
+  [{body :body :as b}]
+  (assoc b :body (template [(firelisp.common/with-template-quotes ~@body)])))
+
+(core/defmacro macro [& body]
+  (let [{:keys [name docstring] :as conf} (-> (s/conform :cljs.core/defn-args body)
+                                              (update-conf macro-wrap)
+                                              (munge-name))
+        new-args (s/unform :cljs.core/fn-args conf)]
+    (template (do (println :macro (quote ~conf))
+                  {:name      '~name
+                   :docstring ~docstring
+                   :fn        ~(cons 'cljs.core/fn new-args)}))))
+
+(core/defmacro defmacro [name & body]
+  (template
+    (let [{name# :name :as macro#} (firelisp.core/macro ~name ~@body)]
+      (swap! ~*defs* assoc name# macro#))))
+
+(core/defn fn-wrap
   [{body :body {[& arglist] :args} :args :as b}]
   (assoc b :body
            (template
              [(list 'let (vec (interleave ~(template (quote ~arglist)) ~(vec arglist))) (quote ~@body))])))
 
-(core/defn macro-wrap
-  [{body :body {[& arglist] :args} :args :as b}]
-  (assoc b :body
-           (template [(firelisp.common/with-template-quotes ~@body)])
-           #_(template
-               [(list 'let (vec (interleave ~(template (quote ~arglist)) ~(vec arglist))) (quote ~@body))])))
-
-(core/defmacro macro* [& body]
-  (let [{:keys [name docstring] :as conf} (s/conform :cljs.core/defn-args body)
-        new-conf (-> (update-conf conf macro-wrap)
-                     (dissoc :name :docstring))
-        new-args (s/unform :cljs.core/fn-args new-conf)]
-    (template {:name      '~name
-               :docstring ~docstring
-               :fn        ~(cons 'cljs.core/fn new-args)})))
-
-(core/defmacro macro [& body]
-  (template (firelisp.common/with-template-quotes
-              (~core-fn ~@body))))
-
-(core/defmacro defmacro [name & body]
-  (template
-    (let [{name# :name fn# :fn :as f#} (firelisp.core/macro* ~name ~@body)]
-      (swap! ~*defs* assoc name# fn#))))
-
 (core/defmacro fn [& body]
-  (let [conf (s/conform :cljs.core/defn-args body)
-        {:keys [name docstring] :as new-conf} (update-conf conf template-wrap)
-        new-args (s/unform :cljs.core/defn-args new-conf)]
+  (let [{:keys [name docstring] :as conf} (-> (s/conform :cljs.core/defn-args body)
+                                              (update-conf fn-wrap)
+                                              (munge-name))
+        new-args (s/unform :cljs.core/defn-args conf)]
     (template {:name      (quote ~name)
                :docstring ~docstring
                :fn        ~(cons 'cljs.core/fn new-args)})))
 
 (core/defmacro defn [& body]
   (template
-    (let [{name# :name fn# :fn} (firelisp.core/fn ~@body)]
-      (swap! ~*defs* assoc name# fn#
-             #_{:name      (quote ~name)
-                :docstring ~docstring
-                :fn        ~(cons 'cljs.core/fn new-args)}))))
+    (let [{name# :name :as fn#} (firelisp.core/fn ~@body)]
+      (swap! ~*defs* assoc name# fn#))))
 
-;; - docstrings
-;; - namespaces (firelisp.defs.core, firelisp.defs.*)
-;; idea - evaluate Firelisp with a different `resolve-symbol` binding; could
-;;        i use existing cljs namespace stuff but restrict to fire-fns?
-
-;; - firelisp fns in a special namespace
-;; - exclude all clojure core functions that overlap
-;; - ^^ problem with this is, what about when you want to 'escape' to clojure?
-;;
-;; show current ns at top of screen. show recently used & available ns's. click on ns to change.
-;; manipulate resolve-var so that macro namespaces behave seamlessly with normal namespaces.
+;; X docstrings
+;; - namespaces for defs?
+;; - show current ns at top of screen. show recently used & available ns's. click on ns to change.
 
 (comment
   (assert (= (macroexpand-1 '(defn my-func [a b]

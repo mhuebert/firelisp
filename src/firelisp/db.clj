@@ -8,12 +8,7 @@
 (defmacro rules [db & body]
   (template (firelisp.db/register-rules ~db (firelisp.core/at [] ~@body))))
 
-(defmacro macro [db name & body]
-  (let [body (cond-> body
-                     (string? (first body)) rest)]
-    (template (update ~db :functions assoc (quote ~name) (firelisp.core/macro ~@(cons name body))))))
-
-#_(defmacro macro [db & body]
+(defmacro macro [db & body]
   (template
     (let [{name# :name :as macro#} (firelisp.core/macro ~@body)]
       (update ~db :functions assoc name# macro#))))

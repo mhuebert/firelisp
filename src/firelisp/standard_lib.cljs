@@ -8,50 +8,37 @@
             [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
   (:require-macros [firelisp.core :as f]))
 
-(defn flatten-nested [sym]
-  (with-template-quotes
-    (fn [& form]
-      (loop [result '(~sym)
-             remaining form]
-        (if (empty? remaining)
-          result
-          (recur (if (and (seq? (first remaining))
-                          (= sym (ffirst remaining)))
-                   (concat result (rest (first remaining)))
-                   (append result (first remaining)))
-                 (rest remaining)))))))
+(defn flatten-nested [sym & [docstring]]
+  {:name      sym
+   :docstring docstring
+   :fn        (with-template-quotes
+                (fn [& form]
+                  (loop [result '(~sym)
+                         remaining form]
+                    (if (empty? remaining)
+                      result
+                      (recur (if (and (seq? (first remaining))
+                                      (= sym (ffirst remaining)))
+                               (concat result (rest (first remaining)))
+                               (append result (first remaining)))
+                             (rest remaining))))))})
 
 (defn flatten-child [& args]
-  (with-template-quotes
-    (if (and (seq? (first args))
-             (= 'child (ffirst args)))
-      '(child ~@(rest (first args)) ~@(rest args))
-      '(child ~@args))))
+  {:name      'flatten-child
+   :docstring "Get child of data location in database"
+   :fn        (with-template-quotes
+                (if (and (seq? (first args))
+                         (= 'child (ffirst args)))
+                  '(child ~@(rest (first args)) ~@(rest args))
+                  '(child ~@args)))})
 
 (swap! *defs* merge
 
-       {'and   (flatten-nested 'and)
-        'or    (flatten-nested 'or)
+       {'and   (flatten-nested 'and "Boolean `and` (return true if all args are truthy)")
+        'or    (flatten-nested 'or "Boolean `or` (return true if at least one arg is truthy)")
         'child flatten-child
-        '+     (flatten-nested '+)
-        '*     (flatten-nested '*)}
-
-       #_{'and   {:name      'and
-                :docstring "Boolean `and` (return true if all args are truthy)"
-                :fn        (flatten-nested 'and)}
-        'or    {:name      'or
-                :docstring "Boolean `or` (return true if at least one arg is truthy)"
-                :fn        (flatten-nested 'or)}
-        'child {:name      'child
-                :arglists  '[[data child-name & child-names]]
-                :docstring "Get child of data location in database"
-                :fn        flatten-child}
-        '+     {:name      '+
-                :docstring "Javascript add (adds numbers, concatenates strings)"
-                :fn        (flatten-nested '+)}
-        '*     {:name      '*
-                :docstring "Javascript multipy"
-                :fn        (flatten-nested '*)}})
+        '+     (flatten-nested '+ "Javascript add (adds numbers, concatenates strings)")
+        '*     (flatten-nested '* "Javascript multiply")})
 
 (f/defn when [pred body]
         (if pred body true))
