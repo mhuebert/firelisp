@@ -8,11 +8,11 @@
 (deftest usage
   (testing "fire-db"
     (let [db (-> db/blank
-                 (db/defn signed-in? [] '(not= auth nil))
+                 (db/macro signed-in? [] '(not= auth nil))
                  (db/rules
                    (at "cells"
                        (at "$uid"
-                           {:validate '(signed-in?)}))))]
+                           {:validate (signed-in?)}))))]
 
       (is (= (-> db
                  (db/rules
@@ -31,10 +31,10 @@
 
       (let [DB (-> db/blank
                    (db/rules
-                     (at "users/$uid"
+                     (at ["users" uid]
                          {:read     true
-                          :write    '(= $uid auth.uid)
-                          :validate {:name 'string?}}))
+                          :write    (= uid auth.uid)
+                          :validate {:name string?}}))
                    (db/auth! {:uid "matt"}))]
 
         (is (db/read? DB "users/matt"))
@@ -46,18 +46,19 @@
         (is (false? (db/read? DB "/"))))
 
       (is (= (at "/x"
-                 {:read '(= auth.uid "herman")})
+                 {:read (= auth.uid "herman")})
              (at "/x"
-                 {:read '(= auth.uid "herman")})))
+                 {:read (= auth.uid "herman")})))
 
       (is (-> db/blank
               (db/rules
-                (at "/x" {:read '(= auth.uid "herman")}))
+                (at ["x"] {:read (= auth.uid "herman")}))
               (db/auth! {:uid "herman"})
               (db/read "x")
               nil?))
 
       (is (= (:rules db)
-             {"cells" {"$uid" {:validate '#{(signed-in?)}}}}))
+             '{"cells" {uid {:validate #{(signed-in?)}}}}))
+
       (is (= (:compiled-rules db)
              {"cells" {"$uid" {".validate" "(auth !== null)"}}})))))

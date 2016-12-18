@@ -3,7 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :refer-macros [at]]
     [firelisp.compile :refer [compile-expr expand]]
-    [firelisp.rules :refer [compile] :include-macros true])
+    [firelisp.core :refer [compile] :include-macros true])
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
@@ -17,9 +17,9 @@
       '(length (child next-data "p")) "newData.child('p').val().length"
       '(< (length next-data) 100) "(newData.val().length < 100)"
       '(length "abc") "'abc'.length"
-      '(contains? "abc" "b") "'abc'.contains('b')"
-      '(contains? next-data "b") "newData.val().contains('b')"
-      '(contains? "abc" next-data) "'abc'.contains(newData.val())"
+      '(in-string? "abc" "b") "'abc'.contains('b')"
+      '(in-string? next-data "b") "newData.val().contains('b')"
+      '(in-string? "abc" next-data) "'abc'.contains(newData.val())"
       '(starts-with? "abc" next-data) "'abc'.beginsWith(newData.val())"
       '(starts-with? next-data "p") "newData.val().beginsWith('p')"
       '(ends-with? "abc" next-data) "'abc'.endsWith(newData.val())"
@@ -73,26 +73,27 @@
       '(parent (parent next-data)) "newData.parent().parent().val()"
       '(child next-data "x") "newData.child('x').val()"
       '(child next-data "x" "y") "newData.child('x' + '/' + 'y').val()"
-      '(contains-key? next-data "p") "newData.hasChild('p')"
+      '(has-key? next-data "p") "newData.hasChild('p')"
       '(child next-data (string? (child prev-root "x"))) "newData.child(root.child('x').isString()).val()")
 
     (at "x" (is (= (compile-expr 'next-root) "newData.parent().val()"))))
 
   (testing "Parent/Child Navigation (path '/$sweet' ...)"
-    (at "/$sweet-thing"
+
+    (at 'sweet-thing
         (are [form out]
           (= (compile-expr form) out)
 
           '(= (child (parent next-data) "name") "frank")
           "(newData.parent().child('name').val() === 'frank')"
 
-          '(get-in (parent next-data) ["name" auth.uid $sweet-thing :whatever])
+          '(get-in (parent next-data) ["name" auth.uid sweet-thing :whatever])
           "newData.parent().child('name' + '/' + auth.uid + '/' + $sweet-thing + '/' + 'whatever').val()"
 
           '(child next-root "permissions" (child next-root "users" auth.uid "role"))
           "newData.parent().child('permissions' + '/' + newData.parent().child('users' + '/' + auth.uid + '/' + 'role').val()).val()"
 
-          '$sweet-thing "$sweet-thing"
+          'sweet-thing "$sweet-thing"
 
           'auth.uid "auth.uid"
           '(= now (child prev-root "x")) "(now === root.child('x').val())"
@@ -122,7 +123,7 @@
 
     (is (= (-> (at "/x"
                    (at "/q"
-                       {:validate '(= true (get next-root "q"))}))
+                       {:validate (= true (get next-root "q"))}))
                compile
                (get-in ["x" "q" ".validate"]))
            "(true === newData.parent().parent().child('q').val())"))
@@ -133,8 +134,8 @@
                '(= next-data (child next-root "p")))))
 
     (is (= (-> db/blank
-               (db/rules (at "x/$y"
-                             {:validate {:timestamp '(= next-data (get next-root "p"))}}))
+               (db/rules (at ["x" y]
+                             {:validate {:timestamp (= next-data (get next-root "p"))}}))
                :compiled-rules
                (get-in ["x" "$y" "timestamp" ".validate"]))
            "(newData.val() === newData.parent().parent().parent().child('p').val())")))

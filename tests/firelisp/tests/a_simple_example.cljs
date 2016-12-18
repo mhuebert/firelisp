@@ -1,7 +1,7 @@
 (ns firelisp.tests.a-simple-example
   (:require [devcards.core :as dc :refer-macros [deftest defcard]]
             [sablono.core :refer-macros [html]]
-            [firelisp.rules :refer [compile at] :include-macros true]
+            [firelisp.core :refer [compile at] :include-macros true]
             [firelisp.compile :refer [expand compile-expr]]
             [cljs.tools.reader :as r])
   (:require-macros
@@ -59,26 +59,26 @@
 
 (defcard
   (mixed
-    "[FireLisp](https://www.github.com/mhuebert/firelisp) is designed to help you write Firebase rules faster and more securely, from Clojure(Script). Let's begin by requiring the `firelisp.rules` namespace:"
+    "[FireLisp](https://www.github.com/mhuebert/firelisp) is designed to help you write Firebase rules faster and more securely, from Clojure(Script). Let's begin by requiring the `firelisp.core` namespace:"
     #_(html [:h1 {:style {:font-size  50
                           :text-align "center"}} "THIS IS ALPHA SOFTWARE"])
 
     (code "
   (ns my-rules.core
      (:require
-       [firelisp.rules :refer [at compile] :include-macros true]))")
+       [firelisp.core :refer [at compile] :include-macros true]))")
 
     "We define rules using the `rules/at` macro:"
 
-    (code "(at \"/\" {:read true})")
+    (code "(at [] {:read true})")
 
 
 
 
-    (let [example "(at \"/\"
+    (let [example "(at []
       {:read true}
-      (at \"/users/$userid\"
-        {:write '(= auth.uid $userid)}))"]
+      (at [\"users\" userid]
+        {:write (= auth.uid userid)}))"]
       (mixed
 
         (md "...which can be nested:")
@@ -88,10 +88,10 @@
         (md "The function `rules/compile` will return a Firebase-compatible map:")
 
         (code
-          (str (compile (at "/"
+          (str (compile (at []
                             {:read true}
-                            (at "/users/$userid"
-                                {:write '(= auth.uid $userid)}))))
+                            (at ["users" userid]
+                                {:write (= auth.uid $userid)}))))
           "javascript")
 
         )
@@ -105,10 +105,10 @@
     "Firebase supports three kinds of rules: **.read**, **.write**, and **.validate**.
 
   ```
-    (at \"/posts/$userid\"
+    (at [\"posts\" userid]
       {:read     true
-       :write    '(= auth.uid $userid)
-       :validate {:title '(and
+       :write    (= auth.uid userid)
+       :validate {:title (and
                             (string? next-data)
                             (< (length next-data) 100))}})
   ```
@@ -119,20 +119,20 @@
   If a `write` rule succeeds at any level of the path hierarchy, none of the `write` rules below it are evaluated:
 
    ```
-   (at \"/\"
+   (at []
      {:write true}
-     (at \"/title\"
-       {:write '(not= nil auth.uid)})) ;; this is ignored!
+     (at [\"/title\"]
+       {:write (not= nil auth.uid)})) ;; this is ignored!
 
    ```
 
  ...but validation rules are always enforced for non-null values, so that we can separate the concerns of *who* is allowed to write to a path from *what* they are allowed to put there.
 
   ```
-  (at \"/\"
+  (at []
     {:write true}
-    (at \"/title\"
-      {:validate '(string? next-data)})) ;; this will always be enforced, unless next-data is `nil`.
+    (at [\"/title\"]
+      {:validate (string? next-data)})) ;; this will always be enforced, unless next-data is `nil`.
  ```
 
  Note that validation rules are ignored for paths that are set to null, so deletion rules must always be written at least one level 'up' from the relevant node.
@@ -147,8 +147,8 @@
   The following rules would allow users to create and delete tweets, but never edit them:
 
   ```
-  (at \"/tweets/$userid\"
-    {:write  '(= auth.uid $userid) ;; this is enforced for all writes
+  (at [\"tweets\" userid]
+    {:write  (= auth.uid userid) ;; this is enforced for all writes
      :update false})               ;; updates will always fail
 
      ;; :create and :delete operations will be allowed if the :write rule passes
@@ -172,10 +172,10 @@
       (form-example-compile
         "next-data")
 
-      (let [expr "(at \"/users/$userid\"
+      (let [expr "(at [\"users\" userid]
   next-root)"
             result (atom)]
-        (at "/users/$userid"
+        (at ["users" userid]
             (reset! result (compile-expr 'next-root)))
         [:tr
          [:td.td-compare-0 (code "next-root")]
@@ -210,7 +210,7 @@
       (form-example-compile
         "(upper-case \"some-string\")"
         "(lower-case \"some-string\")"
-        "(contains? \"some-string\" \"om\")"
+        "(in-string? \"some-string\" \"om\")"
         "(starts-with? \"some-string\" \"so\")"
         "(ends-with? \"some-string\" \"so\")"
         "(matches? \"some-string\" #\"str.ng\")"
@@ -284,11 +284,11 @@
         "(cond 1 2
   3 4
   :else 5)"
-        "(in? #{\"a\" \"b\"} next-data)"
+        "(in-set? #{\"a\" \"b\"} next-data)"
 
-        "(every-> next-data
+        "(and-> next-data
   string?
-  (contains? \"123\"))"
+  (in-string? \"123\"))"
 
         )]]
 
@@ -300,7 +300,7 @@
 
   Below, you can see how the `cond` macro rewrites its arguments into nested `if` statements. (These are further compiled to ternary operations during compilation.)"
 
-    (code "(rulefn cond [& args]
+    (code "(f/defmacro cond [& args]
         (loop [pairs (drop-last (partition 2 args))
                expr (last args)]
           (if-let [[pred result] (last pairs)]
@@ -315,12 +315,12 @@
     Usage:"
 
     (code "(let [d (-> db/blank
-            (db/defn signed-in? [] '(not= auth nil))
+            (db/defn signed-in? [] (not= auth nil))
             (db/rules
-              (at \"cells\"
-                  {:read '(signed-in?)}
-                  (at \"$uid\"
-                      {:write '(= auth.uid $uid)})))
+              (at [\"cells\"]
+                  {:read (signed-in?)}
+                  (at [uid]
+                      {:write (= auth.uid uid)})))
             (db/auth! {:uid \"matt\"}))
       doc {:title \"my-doc\"}]
 

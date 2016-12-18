@@ -1,8 +1,8 @@
 (ns firelisp.db
   (:refer-clojure :exclude [set? set])
   (:require [static.targaryen]
-            [firelisp.rules :refer [compile merge-rules] :include-macros true]
-            [firelisp.standard-lib]
+            [firelisp.env :refer [*defs*]]
+            [firelisp.core :refer [compile merge-rules] :include-macros true]
             [goog.object :as gobj])
   (:require-macros [firelisp.db]))
 
@@ -30,13 +30,13 @@
   {:rules     {}
    :rule-set  (ensure-rules {})
    :database  (database {} (.now js/Date))
-   :functions @firelisp.compile/*rule-fns*
+   :functions @*defs*
    :now       (.now js/Date)})
 
 (defn compiled-rules
   ([db] (compiled-rules db (:rules db)))
   ([db rules]
-   (binding [firelisp.compile/*rule-fns* (atom (:functions db))]
+   (binding [*defs* (atom (:functions db))]
      (compile rules))))
 
 (defn register-rules [db rules]

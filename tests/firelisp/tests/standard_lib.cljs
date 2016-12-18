@@ -1,7 +1,7 @@
 (ns firelisp.tests.standard-lib
   (:require [devcards.core :refer-macros [deftest]]
-            [firelisp.rules :as rules]
-            [firelisp.compile :refer [compile-expr expand]]
+            [firelisp.core :as f]
+            [firelisp.compile :refer [compile-expr expand expand-1]]
             [firelisp.db :as db :include-macros true])
   (:require-macros
     [firelisp.db :refer [at throws]]
@@ -39,12 +39,12 @@
 
     )
 
-  (rules/rulefn admin? [uid]
-                '(= (child next-root "users" ~uid "admin") true))
+  (f/defmacro admin? [uid]
+              '(= (child next-root "users" ~uid "admin") true))
 
 
   (testing "Functions"
-    (at "/x"
+    (at ["x"]
         (is (= (compile-expr {:mode :read}
                              '(admin? "mhuebert"))
                "(root.child('users' + '/' + 'mhuebert' + '/' + 'admin').val() === true)")))
@@ -52,18 +52,34 @@
 
     (is (= (compile-expr '(admin? auth.uid))
            "(newData.child('users' + '/' + auth.uid + '/' + 'admin').val() === true)"))
-    (is (= (let [destructure-test (rules/rulefn* [x & args] '(= ~x ~(last args)))]
+    (is (= (let [destructure-test (f/macro [x & args] '(= ~x ~(last args)))]
              (compile-expr (destructure-test "hello" "hello")))
            "('hello' === 'hello')")))
 
-  (testing "Let"
+  (testing "let"
 
     (is (= (compile-expr '(let [x auth.token
-                           y "matt"]
-                       (let [x auth.uid]
-                         (and (= (get-in next-root ["admin" "uid"]) x)
-                              (= (get-in next-root ["admin" "name"]) y)))))
-           "((newData.child('admin' + '/' + 'uid').val() === auth.uid) && (newData.child('admin' + '/' + 'name').val() === 'matt'))")))
+                                y "matt"]
+                            (let [x auth.uid]
+                              (and (= (get-in next-root ["admin" "uid"]) x)
+                                   (= (get-in next-root ["admin" "name"]) y)))))
+           "((newData.child('admin' + '/' + 'uid').val() === auth.uid) && (newData.child('admin' + '/' + 'name').val() === 'matt'))"))
+
+    (testing "multiple bindings"
+      (is (= (expand-1 '(let [x 10
+                              x 11
+                              y (+ x 12)]
+                          (+ x y)))
+             '(let [x 10]
+                (let [x 11]
+                  (let [y (+ x 12)]
+                    (+ x y)))))
+          "multiple let bindings expand to nested lets")
+      (is (= (expand '(let [x 10
+                            x 11
+                            y (+ x 12)]
+                        (+ x y)))
+             '(+ 11 11 12)))))
 
   "**Macros**"
 
@@ -73,7 +89,22 @@
     (is (= (compile-expr '(cond 1 2
                                 3 4
                                 :else 5))
-           "(1 ? 2 : (3 ? 4 : 5))")))
+           "(1 ? 2 : (3 ? 4 : 5))"))
+
+    (is (= (expand '(cond 1 2
+                          3 4
+                          :else 5))
+           '(if 1 2
+                  (if 3 4
+                        5))))
+
+    (is (= (expand '(cond "a" 1
+                          "b" 2))
+           (expand '(cond "a" 1
+                          "b" 2
+                          :else false))
+           '(if "a" 1 (if "b" 2 false)))
+        "if no :else predicate, default to false"))
 
   (testing "-> (threading macro)"
     (is (= (expand '(-> next-data
@@ -82,28 +113,46 @@
                         lower-case))
            '(lower-case (child (parent next-data) "x")))))
 
-  (testing "every->"
-    (is (= (expand '(every-> next-data string? (= "matt")))
-           '(and (string? next-data) (= next-data "matt")))))
+  (testing "and->"
+    (is (= (expand '(and-> next-data
+                           string?
+                           (= "matt")))
+           '(and (string? next-data)
+                 (= next-data "matt")))))
 
-  (testing "in?"
+  (testing "string fns"
+    (is (= (expand '(upper-case? x))
+           '(= x (upper-case x)))
+        "upper-case?"))
+
+  (testing "comparisons"
+
+    (is (= (expand '(between 0 -10 10))
+           '(and (> 0 -10) (< 0 10)))
+        "between")
+
+    (is (= (expand '(within 0 -10 10))
+           '(and (>= 0 -10) (<= 0 10)))
+        "within"))
+
+  (testing "in-string?, in-set?"
 
     (let [db (-> db/blank
                  (db/rules
                    {:write true}
-                   (at "users/$uid/roles"
-                       {:validate '(in? #{"admin"
-                                          4
-                                          auth.uid} next-data)}))
+                   (at ["users" uid "roles"]
+                       {:validate (in-set? #{"admin"
+                                             4
+                                             auth.uid} next-data)}))
                  (db/auth! {:uid "my-uid"}))]
 
-      (is (db/set db "users/matt/roles" "admin")
-          "in? with string")
-      (is (db/set db "users/matt/roles" 4)
-          "in? with number")
-      (is (db/set db "users/matt/roles" "my-uid")
-          "in? with auth value")
-      (throws (db/set db "users/matt/roles" "other-string")
-              "value not contained in set")
+      (is (db/set? db "users/matt/roles" "admin")
+          "in-set? with string")
+      (is (db/set? db "users/matt/roles" 4)
+          "in-set? with number")
+      (is (db/set? db "users/matt/roles" "my-uid")
+          "in-set? with auth value")
+      (is (not (db/set? db "users/matt/roles" "other-string"))
+          "value not contained in set")
       (is (db/set db "users/matt/roles" nil)
           "careful - as a validate rule, nil is still allowed"))))

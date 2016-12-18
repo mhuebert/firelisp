@@ -4,7 +4,7 @@
     [firelisp.common :refer [append]]
     [firelisp.db :as db :refer-macros [at rules]]
     [firelisp.compile :as c]
-    [firelisp.rules :as rules :refer [compile] :refer-macros [rulefn]])
+    [firelisp.core :as f :refer [compile]])
   (:require-macros
     [cljs.test :refer [is testing]]))
 
@@ -18,21 +18,29 @@
 
     (let [db (atom (-> db/blank
 
-                       (db/defn role [uid]
-                                "Get role for user"
-                                '(get-in prev-root ["users" ~uid "role"]))
+                       (db/macro role [uid]
+                                 "Get role for user"
+                                 '(get-in prev-root ["users" ~uid "role"]))
 
-                       (db/defn has-permission? [uid action]
-                                '(= true (get-in prev-root ["roles" (role ~uid) "permissions" ~action])))
+                       (db/macro has-permission? [uid action]
+                                 '(= true (get-in prev-root ["roles" (role ~uid) "permissions" ~action])))
 
                        (db/rules
 
-                         (at "users/$uid/role"
-                             {:write '(or (and (nil? next-data) (= $uid auth.uid))
-                                          (has-permission? auth.uid "manage-roles"))})
+                         {"users" {'uid {"role" {:write (or (and (nil? next-data) (= $uid auth.uid))
+                                                            (has-permission? auth.uid "manage-roles"))}}}
+                          "roles" {'role {"permissions" {'permission {:validate (boolean? next-data)}}}}}
 
-                         (at "roles/$role/permissions/$permission"
-                             {:validate '(boolean? next-data)}))
+                         #_'{["users" uid "role"] {:write '()}}
+
+
+
+                         (at ["users" uid "role"]
+                             {:write (or (and (nil? next-data) (= $uid auth.uid))
+                                         (has-permission? auth.uid "manage-roles"))})
+
+                         (at ["roles" role "permissions" permission]
+                             {:validate (boolean? next-data)}))
 
                        (db/set! "/" {"roles" {"admin"  {:permissions {:read         true
                                                                       :write        true
@@ -66,9 +74,9 @@
   (testing "Read-example"
 
     (let [db (-> db/blank
-                 (db/rules (at "/orders"
-                               {:read '(or (not= nil (get-in root ["technicians" auth.uid]))
-                                           (= "server" auth.uid))})))]
+                 (db/rules (at ["orders"]
+                               {:read (or (not= nil (get-in root ["technicians" auth.uid]))
+                                          (= "server" auth.uid))})))]
 
       (is (false? (db/read? db "/orders/")))
 
@@ -86,46 +94,46 @@
 
     (let [db (atom (-> db/blank
 
-                       (db/defn signed-in? []
-                                '(not= auth nil))
+                       (db/macro signed-in? []
+                                 '(not= auth nil))
 
-                       (db/defn name-string? []
-                                '(and (string? next-data)
-                                      (between (length next-data) 0 20)))
+                       (db/macro name-string? []
+                                 '(and (string? next-data)
+                                       (between (length next-data) 0 20)))
 
-                       (db/defn room-name [id]
-                                '(get-in prev-root ["room_names" ~id]))
+                       (db/macro room-name [id]
+                                 '(get-in prev-root ["room_names" ~id]))
 
-                       (db/defn room-member? [room-id]
-                                '(and (signed-in?)
-                                      (exists? (get-in prev-root ["members" ~room-id auth.uid]))))
-                       (db/rules (at "/"
+                       (db/macro room-member? [room-id]
+                                 '(and (signed-in?)
+                                       (exists? (get-in prev-root ["members" ~room-id auth.uid]))))
+                       (db/rules (at []
                                      {:read true}
 
-                                     (at "room_names"
-                                         {:validate 'object?}
+                                     (at ["room_names"]
+                                         {:validate object?}
                                          (at "$name"
-                                             {:validate 'string?}))
+                                             {:validate string?}))
 
-                                     (at "members/$roomId"
-                                         {:read '(room-member? $roomId)}
+                                     (at ["members" roomId]
+                                         {:read (room-member? $roomId)}
                                          (at "$user_id"
-                                             {:validate 'name-string?
-                                              :write    '(= auth.uid $user_id)
-                                              :update   '(unchanged?)}))
+                                             {:validate name-string?
+                                              :write    (= auth.uid $user_id)
+                                              :update   (unchanged?)}))
 
-                                     (at "messages/$roomId"
-                                         {:read     '(room-member? $roomId)
-                                          :validate '(exists? (room-name $roomId))}
-                                         (at "$message-id"
-                                             {:write    '(= (get-in next-root ["members" $roomId auth.uid])
-                                                            (get next-data "name"))
+                                     (at ["messages" roomId]
+                                         {:read     (room-member? $roomId)
+                                          :validate (exists? (room-name $roomId))}
+                                         (at [message-id]
+                                             {:write    (= (get-in next-root ["members" $roomId auth.uid])
+                                                           (get next-data "name"))
                                               :update   false
                                               :delete   false
-                                              :validate {"name"      'name-string?
-                                                         "message"   '(and (string? next-data)
-                                                                           (between (length next-data) 0 50))
-                                                         "timestamp" '(= next-data now)}}))))
+                                              :validate {"name"      name-string?
+                                                         "message"   (and (string? next-data)
+                                                                          (between (length next-data) 0 50))
+                                                         "timestamp" (= next-data now)}}))))
                        (db/auth! {:uid "bob"})))]
 
       (is (swap! db db/set! "/room_names/y" "my-great-room"))
@@ -142,22 +150,22 @@
     ; "From [this example by katowulf,](http://jsfiddle.net/firebase/VBmA5/) 'throttle messages to no more than one every 5,000 milliseconds'"
 
     (let [db (atom (-> db/blank
-                       (db/rules (at "/"
+                       (db/rules (at []
                                      {"last_message/$user"
-                                      {:write  '(= $user auth.uid)
-                                       :create '(= next-data now)
-                                       :update '(and (= next-data now)
-                                                     (> next-data (+ 5000 prev-data)))
+                                      {:write  (= $user auth.uid)
+                                       :create (= next-data now)
+                                       :update (and (= next-data now)
+                                                    (> next-data (+ 5000 prev-data)))
                                        :delete false}
 
                                       "messages/$message-id"
-                                      {:write    '(= (get next-data "sender") auth.uid)
-                                       :validate {:timestamp '(= next-data (get-in next-root ["last_message" auth.uid]))
+                                      {:write    (= (get next-data "sender") auth.uid)
+                                       :validate {:timestamp (= next-data (get-in next-root ["last_message" auth.uid]))
                                                   :sender    true
-                                                  :message   '(and (string? next-data)
-                                                                   (< (length next-data) 500))}}
+                                                  :message   (and (string? next-data)
+                                                                  (< (length next-data) 500))}}
                                       "what/$ever"
-                                      {:write '(= next-data (child next-root auth.uid auth.uid))}}))
+                                      {:write (= next-data (child next-root auth.uid auth.uid))}}))
                        (db/auth! {:uid "frank"})))]
 
       (is (swap! db db/set "last_message/frank" {".sv" "timestamp"})
@@ -213,39 +221,39 @@
 
   (testing "Timestamps"
     (let [db (-> db/blank
-                 (db/rules (at "/" {:write '(= next-data now)})))]
+                 (db/rules (at [] {:write (= next-data now)})))]
       (is (true? (db/set? db "/" {:.sv "timestamp"})))
       (is (true? (db/set? db "/" (.now js/Date))))
       (is (false? (db/set? db "/" (dec (.now js/Date))))))
 
 
-    (let [Post {:message  'string?
-                  :modified '(= next-data now)
-                  :created  '(= next-data (if (new?)
-                                            now
-                                            prev-data))}
-            db (-> db/blank
-                   (db/rules (at "posts/$id"
-                                 {:read     true
-                                  :write    true
-                                  :validate Post})))]
+    (let [Post '{:message  string?
+                 :modified (= next-data now)
+                 :created  (= next-data (if (new?)
+                                          now
+                                          prev-data))}
+          db (-> db/blank
+                 (db/rules (at ["posts" id]
+                               {:read     true
+                                :write    true
+                                :validate ~Post})))]
 
-        (is (db/set? db "/posts/123" {:message  ""
-                                      :modified {:.sv "timestamp"}
-                                      :created  {:.sv "timestamp"}}))
+      (is (db/set? db "/posts/123" {:message  ""
+                                    :modified {:.sv "timestamp"}
+                                    :created  {:.sv "timestamp"}}))
 
-        (is (false? (db/set? db "/posts/123" {:message  ""
-                                              :modified (- (.now js/Date) 100)
-                                              :created  (- (.now js/Date) 100)})))
+      (is (false? (db/set? db "/posts/123" {:message  ""
+                                            :modified (- (.now js/Date) 100)
+                                            :created  (- (.now js/Date) 100)})))
 
 
-        (let [DB (db/set! db "/" {:posts {"123" {:message  ""
-                                                 :created  (dec (.now js/Date))
-                                                 :modified (dec (.now js/Date))}}})]
+      (let [DB (db/set! db "/" {:posts {"123" {:message  ""
+                                               :created  (dec (.now js/Date))
+                                               :modified (dec (.now js/Date))}}})]
 
-          (is (db/set DB "/posts/123/modified" {:.sv "timestamp"}))
+        (is (db/set DB "/posts/123/modified" {:.sv "timestamp"}))
 
-          (doseq [not-now [(dec (.now js/Date)) (+ 10 (.now js/Date))]]
-            (is (false? (db/set? DB "/posts/123/modified" not-now))))
+        (doseq [not-now [(dec (.now js/Date)) (+ 10 (.now js/Date))]]
+          (is (false? (db/set? DB "/posts/123/modified" not-now))))
 
-          (is (false? (db/set? DB "/posts/123/created" {:.sv "timestamp"})))))))
+        (is (false? (db/set? DB "/posts/123/created" {:.sv "timestamp"})))))))

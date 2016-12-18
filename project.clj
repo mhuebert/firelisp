@@ -6,7 +6,7 @@
 
   :min-lein-version "2.5.3"
 
-  :dependencies [[org.clojure/clojure "1.8.0"]
+  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
                  [org.clojure/clojurescript "1.9.293"]
                  [devcards "0.2.1-7"]
                  [sablono "0.7.1"]

@@ -1,29 +1,31 @@
 (ns firelisp.compile
   (:require [clojure.string :as string]
+            [firelisp.env :refer [*defs*]]
             [firelisp.walk :refer [postorder-replace]]))
 
 (def ^:dynamic *path* [])
-(def ^:dynamic *rule-fns* (atom {}))
 
-(def terminal-forms '#{and or = not= + - * / % > < >= <= do not if exists? number? string? boolean? object? parent child contains-key? upper-case lower-case contains? starts-with? ends-with? matches? replace length})
+(def terminal-forms '#{and or = not= + - * / % > < >= <= do not if exists? number? string? boolean? object? parent child has-key? upper-case lower-case in-string? starts-with? ends-with? matches? contains? replace length})
 
-(defn expand-1 [fns form]
-  (postorder-replace
-    (fn [expr]
-      (if (seq? expr)
-        (if-let [operator (some->> (first expr)
-                                   (get fns))]
-          (apply operator (rest expr))
-          (do
-            (when-not (contains? terminal-forms (first expr)) (prn "Operator not found: " (first expr)))
-            expr))
-        expr)) form))
+(defn expand-1
+  ([form] (expand-1 @*defs* form))
+  ([fns form]
+   (postorder-replace
+     (fn [expr]
+       (if (seq? expr)
+         (if-let [operator (some->> (first expr)
+                                    (get fns))]
+           (apply operator (rest expr))
+           (do
+             (when-not (contains? terminal-forms (first expr)) (prn "Operator not found: " (first expr)))
+             expr))
+         expr)) form)))
 
 (defn expand
   [expr]
   (loop [current-expr expr
          count 0]
-    (let [next-expr (expand-1 @*rule-fns* current-expr)]
+    (let [next-expr (expand-1 @*defs* current-expr)]
       (when (> count 100)
         (throw "Expand-fns probably in a loop, iterated 100 times"))
       (if (= next-expr current-expr)
@@ -54,7 +56,7 @@
   [{:keys [operator args as-snapshot?] :as n}]
   (let [arg-count (count args)]
     (case operator
-      ( + - / * % > < >= <=) (infix (str operator) n)
+      (+ - / * % > < >= <=) (infix (str operator) n)
       and (infix "&&" n)
       or (infix "||" n)
       = (infix "===" n)
@@ -78,12 +80,12 @@
                      (not as-snapshot?) (str ".val()"))
       child (cond-> (method "child" n " + '/' + ")
                     (not as-snapshot?) (str ".val()"))
-      contains-key? (method "hasChild" n)
+      has-key? (method "hasChild" n)
 
       ;; string methods
       upper-case (method "toUpperCase" n)
       lower-case (method "toLowerCase" n)
-      contains? (method "contains" n)
+      in-string? (method "contains" n)
       starts-with? (method "beginsWith" n)
       ends-with? (method "endsWith" n)
       matches? (method "matches" n)
@@ -101,7 +103,9 @@
     nil :nil
     (= form 'now) :timestamp
     (cond (number? form) :number
-          (symbol? form) :symbol
+          (symbol? form) (if (contains? (set *path*) form)
+                           :path-variable
+                           :symbol)
           (string? form) :string
           (regexp? form) :regexp
           (boolean? form) :boolean
@@ -109,7 +113,7 @@
           :else :other)))
 
 (defmethod emit :atom
-  [{:keys [value mode as-snapshot? atom-type path]}]
+  [{:keys [value mode as-snapshot? atom-type]}]
   (case atom-type
     :nil "null"
     :timestamp "now"
@@ -119,6 +123,7 @@
       :keyword) (str "'" (name value) "'")
     (:boolean
       :symbol) (str value)
+    :path-variable (str "$" value)
     :snapshot (cond->
                 (try (case mode
                        :read (case value
@@ -164,7 +169,7 @@
                'object?
                'parent
                'child
-               'contains-key?} sym))
+               'has-key?} sym))
 
 (defn no-op? [form]
   (and (seq? form)
@@ -188,16 +193,11 @@
 
 (defmethod node :atom
   [opts form]
-  (let [atom-type (atom-type form)]
-    (when (and (= atom-type :symbol)
-               (= \$ (first (name form)))
-               (not (contains? (set (map str *path*)) (munge (name form)))))
-      (throw (js/Error (str "Path variable not found: " (name form)))))
-    (merge {:type      :atom
-            :path      *path*
-            :value     form
-            :atom-type atom-type}
-           opts)))
+  (merge {:type      :atom
+          :path      *path*
+          :value     form
+          :atom-type (atom-type form)}
+         opts))
 
 (def ^:dynamic *mode* :write)
 (defn compile-expr

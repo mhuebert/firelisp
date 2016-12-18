@@ -1,12 +1,14 @@
 (ns firelisp.standard-lib
-  (:require [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
+  (:refer-clojure :exclude [when nil? get get-in])
+  (:require [cljs.core :as core]
+            [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
             [clojure.walk]
             [clojure.set :refer [subset?]]
-            [firelisp.compile :refer [*rule-fns*]]
-            [firelisp.paths :refer [parse-path throw-duplicate-path-variables]]
-            [firelisp.rules :refer-macros [rulefn]]))
+            [firelisp.env :refer [*defs*]]
+            [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
+  (:require-macros [firelisp.core :as f]))
 
-(defn simplify [sym]
+(defn flatten-nested [sym]
   (with-template-quotes
     (fn [& form]
       (loop [result '(~sym)
@@ -19,102 +21,130 @@
                    (append result (first remaining)))
                  (rest remaining)))))))
 
-(defn simplify-child [& args]
+(defn flatten-child [& args]
   (with-template-quotes
     (if (and (seq? (first args))
              (= 'child (ffirst args)))
       '(child ~@(rest (first args)) ~@(rest args))
       '(child ~@args))))
 
-(swap! *rule-fns* merge {'and   (simplify 'and)
-                         'or    (simplify 'or)
-                         'child simplify-child
-                         '+     (simplify '+)
-                         '*     (simplify '*)})
+(swap! *defs* merge
 
-(rulefn when [pred body]
-        '(if ~pred ~body true))
+       {'and   (flatten-nested 'and)
+        'or    (flatten-nested 'or)
+        'child flatten-child
+        '+     (flatten-nested '+)
+        '*     (flatten-nested '*)}
 
-(rulefn cond [& args]
-        (loop [pairs (drop-last (partition 2 args))
-               expr (last args)]
-          (if-let [[pred result] (last pairs)]
-            (recur (drop-last pairs)
-                   '(if ~pred ~result ~expr))
-            expr)))
+       #_{'and   {:name      'and
+                :docstring "Boolean `and` (return true if all args are truthy)"
+                :fn        (flatten-nested 'and)}
+        'or    {:name      'or
+                :docstring "Boolean `or` (return true if at least one arg is truthy)"
+                :fn        (flatten-nested 'or)}
+        'child {:name      'child
+                :arglists  '[[data child-name & child-names]]
+                :docstring "Get child of data location in database"
+                :fn        flatten-child}
+        '+     {:name      '+
+                :docstring "Javascript add (adds numbers, concatenates strings)"
+                :fn        (flatten-nested '+)}
+        '*     {:name      '*
+                :docstring "Javascript multipy"
+                :fn        (flatten-nested '*)}})
+
+(f/defn when [pred body]
+        (if pred body true))
+
+(f/defmacro cond [& args]
+            (let [[[else expr] & pairs] (reverse (partition 2 args))]
+              (loop [pairs pairs
+                     expr (if (= :else else)
+                            expr
+                            '(if ~else ~expr false))]
+                (if-let [[pred result] (first pairs)]
+                  (recur (rest pairs)
+                         '(if ~pred ~result ~expr))
+                  expr))))
 
 (defn root? [s]
   (= \/ (first (name (if (seq? s) (first s) s)))))
 
-(rulefn -> [start-point & operations]
-        (loop [expr start-point
-               [next-op & remaining] operations]
-          (if-not next-op
-            expr
-            (recur (if (seq? next-op)
-                     '(~(first next-op) ~expr ~@(rest next-op))
-                     '(~next-op ~expr))
-                   remaining))))
+(f/defmacro ->
+            "Threading macro"
+            [start-point & operations]
+            (loop [expr start-point
+                   [next-op & remaining] operations]
+              (if-not next-op
+                expr
+                (recur (if (seq? next-op)
+                         '(~(first next-op) ~expr ~@(rest next-op))
+                         '(~next-op ~expr))
+                       remaining))))
 
-(rulefn every-> [v & predicates]
-        (loop [expr '(and)
-               [next-op & remaining] predicates]
-          (if-not next-op
-            expr
-            (recur (append expr
-                           (if (seq? next-op)
-                             '(~(first next-op) ~v ~@(rest next-op))
-                             '(~next-op ~v)))
-                   remaining))))
+(f/defmacro and->
+            "Thread v through a series of forms, which are wrapped in `and`"
+            [v & predicates]
+            '(and ~@(for [p predicates
+                          :let [[op & args] (if (seq? p) p '(~p))]]
+                      '(~op ~v ~@args))))
 
-(rulefn lower-case? [s]
-        '(= ~s (lower-case ~s)))
+(f/defn lower-case? [s]
+        (= s (lower-case s)))
 
-(rulefn upper-case? [s]
-        '(= ~s (lower-case ~s)))
+(f/defn upper-case? [s]
+        (= s (upper-case s)))
 
-(rulefn within [val min max]
-        '(and (>= ~val ~min) (<= ~val ~max)))
+(f/defn within [val min max]
+        (and (>= val min) (<= val max)))
 
-(rulefn between [val min max]
-        '(and (> ~val ~min) (< ~val ~max)))
+(f/defn between [val min max]
+        (and (> val min) (< val max)))
 
-(rulefn in?
-        "Returns true if value is in coll, which must be a set."
-        [coll value]
-        {:pre [(set? coll)]}
-        '(or ~@(for [option coll]
-                 '(= ~value ~option))))
 
-(rulefn string-length [s min max]
-        '(and (string? ~s)
-              (between ~s ~min ~max)))
+(f/defmacro in-set?
+            "Returns true if value is in coll, which must be a literal set (not a runtime/db value)."
+            [coll value]
+            {:pre [(set? coll)]}
+            '(or ~@(for [option coll]
+                     '(= ~value ~option))))
 
-(rulefn new? []
-        '(and (= prev-data nil)
-              (exists? next-data)))
+(f/defn string-length [s min max]
+        (and (string? s)
+             (between s min max)))
 
-(rulefn nil? [d]
-        '(= ~d nil))
+(f/defn new? []
+        (and (= prev-data nil)
+             (exists? next-data)))
 
-(rulefn unchanged? []
-        '(= next-data prev-data))
+(f/defn nil? [d]
+        (= d nil))
 
-(rulefn get-in
-        ([target path]
-          '(child ~target ~@path))
-        ([target path default]
-          '(if (exists? (child ~target ~@path))
-             (child ~target ~@path)
-             ~default)))
+(f/defn unchanged? []
+        (= next-data prev-data))
 
-(rulefn get
+(f/defmacro get-in
+            ([target path]
+              '(child ~target ~@path))
+            ([target path default]
+              '(if (exists? (child ~target ~@path))
+                 (child ~target ~@path)
+                 ~default)))
+
+(f/defn get
         ([target attr]
-          '(child ~target ~attr))
+          (child target attr))
         ([target attr default]
-          '(if (exists? (child ~target ~attr))
-             (child ~target ~attr)
-             ~default)))
+          (if (exists? (child target attr))
+            (child target attr)
+            default)))
 
-(rulefn let [bindings & body]
-        (clojure.walk/postwalk-replace (apply hash-map bindings) (last body)))
+(f/defmacro let [bindings body]
+            (if (<= (count bindings) 2)
+              (clojure.walk/postwalk-replace (apply hash-map bindings) body)
+              (loop [result body
+                     bindings (reverse (partition 2 bindings))]
+                (if (empty? bindings)
+                  result
+                  (recur '(let [~@(first bindings)] ~result)
+                         (rest bindings))))))
