@@ -52,7 +52,9 @@
 
     (is (= (compile-expr '(admin? auth.uid))
            "(newData.child('users' + '/' + auth.uid + '/' + 'admin').val() === true)"))
-    (is (= (let [destructure-test (f/macro [x & args] '(= ~x ~(last args)))]
+
+    ;; depracated anonymous fn/macro
+    #_(is (= (let [destructure-test (f/macro [x & args] '(= ~x ~(last args)))]
              (compile-expr (destructure-test "hello" "hello")))
            "('hello' === 'hello')")))
 

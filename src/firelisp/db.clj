@@ -13,6 +13,11 @@
                      (string? (first body)) rest)]
     (template (update ~db :functions assoc (quote ~name) (firelisp.core/macro ~@(cons name body))))))
 
+#_(defmacro macro [db & body]
+  (template
+    (let [{name# :name :as macro#} (firelisp.core/macro ~@body)]
+      (update ~db :functions assoc name# macro#))))
+
 (defmacro throws [& body]
   (let [docstring (when (string? (last body)) (last body))
         body (cond-> body

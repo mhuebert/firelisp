@@ -39,9 +39,7 @@
                                     :attr (s/? map?)))))
 
 (s/def :cljs.core/fn-args
-  (s/cat :name symbol?
-         :docstring (s/? string?)
-         :bs (s/alt :arity-1 ::args+body
+  (s/cat :bs (s/alt :arity-1 ::args+body
                     :arity-n (s/cat :bodies (s/+ (s/spec
                                                    ::args+body))
                                     :attr (s/? map?)))))

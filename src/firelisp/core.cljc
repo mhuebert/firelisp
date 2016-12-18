@@ -1,5 +1,5 @@
 (ns firelisp.core
-  (:refer-clojure :exclude [defn defmacro])
+  (:refer-clojure :exclude [defn defmacro fn])
   (:require
     [firelisp.template :refer [template] :include-macros true]
     [firelisp.specs]
@@ -12,23 +12,13 @@
     [clojure.spec :as s]])))
 
 (def *defs* 'firelisp.env/*defs*)
-
-(core/defmacro macro [& body]
-  (template (firelisp.common/with-template-quotes
-              (fn ~@body))))
-
-(core/defmacro defmacro [name & body]
-  (let [body (cond-> body
-                     (string? (first body)) rest)]
-    (template (swap! ~*defs*
-                     assoc (quote ~name) (firelisp.core/macro ~@(cons name body))
-                     #_{:name (quote ~name)
-                        :fn   (firelisp.core/macro ~@(cons name body))}))))
+(def core-fn #?(:cljs 'cljs.core/fn
+                :clj  'clojure.core/fn))
 
 (core/defn update-conf [{[arity] :bs :as conf} update-fn]
   (case arity
     :arity-1 (update-in conf [:bs 1] update-fn)
-    :arity-n (update-in conf [:bs 1 :bodies] (fn [bodies]
+    :arity-n (update-in conf [:bs 1 :bodies] (core/fn [bodies]
                                                (map update-fn bodies)))))
 
 (core/defn template-wrap
@@ -37,12 +27,43 @@
            (template
              [(list 'let (vec (interleave ~(template (quote ~arglist)) ~(vec arglist))) (quote ~@body))])))
 
-(core/defmacro defn [& body]
-  (let [conf (s/conform :cljs.core/fn-args body)
+(core/defn macro-wrap
+  [{body :body {[& arglist] :args} :args :as b}]
+  (assoc b :body
+           (template [(firelisp.common/with-template-quotes ~@body)])
+           #_(template
+               [(list 'let (vec (interleave ~(template (quote ~arglist)) ~(vec arglist))) (quote ~@body))])))
+
+(core/defmacro macro* [& body]
+  (let [{:keys [name docstring] :as conf} (s/conform :cljs.core/defn-args body)
+        new-conf (-> (update-conf conf macro-wrap)
+                     (dissoc :name :docstring))
+        new-args (s/unform :cljs.core/fn-args new-conf)]
+    (template {:name      '~name
+               :docstring ~docstring
+               :fn        ~(cons 'cljs.core/fn new-args)})))
+
+(core/defmacro macro [& body]
+  (template (firelisp.common/with-template-quotes
+              (~core-fn ~@body))))
+
+(core/defmacro defmacro [name & body]
+  (template
+    (let [{name# :name fn# :fn :as f#} (firelisp.core/macro* ~name ~@body)]
+      (swap! ~*defs* assoc name# fn#))))
+
+(core/defmacro fn [& body]
+  (let [conf (s/conform :cljs.core/defn-args body)
         {:keys [name docstring] :as new-conf} (update-conf conf template-wrap)
         new-args (s/unform :cljs.core/defn-args new-conf)]
-    (template
-      (swap! ~*defs* assoc (quote ~name) ~(cons 'cljs.core/fn new-args)
+    (template {:name      (quote ~name)
+               :docstring ~docstring
+               :fn        ~(cons 'cljs.core/fn new-args)})))
+
+(core/defmacro defn [& body]
+  (template
+    (let [{name# :name fn# :fn} (firelisp.core/fn ~@body)]
+      (swap! ~*defs* assoc name# fn#
              #_{:name      (quote ~name)
                 :docstring ~docstring
                 :fn        ~(cons 'cljs.core/fn new-args)}))))
