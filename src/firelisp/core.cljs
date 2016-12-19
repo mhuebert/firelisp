@@ -1,14 +1,14 @@
 (ns firelisp.core
   (:require
     [static.targaryen]
+    [firelisp.env :refer [*rules* *path*]]
+    [firelisp.repl]
     [firelisp.standard-lib]
-    [firelisp.compile :refer [compile-expr *path*]]
+    [firelisp.compile :refer [compile-expr]]
     [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
     [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
   (:require-macros
     [firelisp.core :refer [at rules]]))
-
-(def ^:dynamic *rules* nil)
 
 (defn add
   [path & rules]

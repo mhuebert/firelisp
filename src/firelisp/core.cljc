@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [defn defmacro fn])
   (:require
     [firelisp.template :refer [template] :include-macros true]
-    [firelisp.specs]
+    [firelisp.specs :refer [get-arglists conf-meta]]
     [firelisp.paths]
     [firelisp.convert :refer [convert-quotes]]
     [clojure.spec :as s :include-macros true]
@@ -28,13 +28,11 @@
   (assoc b :body (template [(firelisp.common/with-template-quotes ~@body)])))
 
 (core/defmacro macro [& body]
-  (let [{:keys [name docstring] :as conf} (-> (s/conform :cljs.core/defn-args body)
-                                              (update-conf macro-wrap)
-                                              (munge-name))
+  (let [conf (-> (s/conform :cljs.core/defn-args body)
+                 (update-conf macro-wrap)
+                 (munge-name))
         new-args (s/unform :cljs.core/fn-args conf)]
-    (template {:name      '~name
-               :docstring ~docstring
-               :fn        ~(cons 'cljs.core/fn new-args)})))
+    (assoc (conf-meta conf) :fn (template ~(cons 'cljs.core/fn new-args)))))
 
 (core/defmacro defmacro [name & body]
   (template
@@ -48,13 +46,11 @@
              [(list 'let (vec (interleave ~(template (quote ~arglist)) ~(vec arglist))) (quote ~@body))])))
 
 (core/defmacro fn [& body]
-  (let [{:keys [name docstring] :as conf} (-> (s/conform :cljs.core/defn-args body)
-                                              (update-conf fn-wrap)
-                                              (munge-name))
+  (let [conf (-> (s/conform :cljs.core/defn-args body)
+                 (update-conf fn-wrap)
+                 (munge-name))
         new-args (s/unform :cljs.core/defn-args conf)]
-    (template {:name      (quote ~name)
-               :docstring ~docstring
-               :fn        ~(cons 'cljs.core/fn new-args)})))
+    (assoc (conf-meta conf) :fn (template ~(cons 'cljs.core/fn new-args)))))
 
 (core/defmacro defn [& body]
   (template
@@ -67,17 +63,17 @@
 
 (comment
   (assert (= (macroexpand-1 '(defn my-func [a b]
-                                   (+ a b)))
+                               (+ a b)))
              ;; return a function that accepts arguments & quoted forms,
              ;; returns a form with two modifications,
              ;; 1 - (let [arg-a-symbol ~arg-a-value, arg-b-symbol ~arg-b-value] ...)
              ;; 2 - the return value is quoted (so we probably must use `template`
              '(defn my-func [a b]
-                    (let [argslist [a ~a
-                                    b ~b]]
-                      (template
-                        (let ~argslist
-                          (+ a b)))))
+                (let [argslist [a ~a
+                                b ~b]]
+                  (template
+                    (let ~argslist
+                      (+ a b)))))
              )
           (= (my-func 1 2)
              '(let [a 1 b 2]
@@ -123,14 +119,14 @@
 
     (template
       (try (let [segments# (~'firelisp.paths/parse-path ~path)
-                 leaf-rules# (binding [~'firelisp.compile/*path* (apply conj ~'firelisp.compile/*path* segments#)
-                                       ~'firelisp.core/*rules* (atom ~blank-rules)]
+                 leaf-rules# (binding [~'firelisp.env/*path* (apply conj ~'firelisp.env/*path* segments#)
+                                       ~'firelisp.env/*rules* (atom ~blank-rules)]
                                ~@(convert-quotes body)
-                               @~'firelisp.core/*rules*)
+                               @~'firelisp.env/*rules*)
                  rules# (->> leaf-rules#
-                             (~'firelisp.core/update-in-map (some-> ~'firelisp.core/*rules* deref) segments# ~'firelisp.core/merge-rules)
+                             (~'firelisp.core/update-in-map (some-> ~'firelisp.env/*rules* deref) segments# ~'firelisp.core/merge-rules)
                              (~'firelisp.core/filter-by-value #(not (and (set? %) (empty? %)))))]
-             (some-> ~'firelisp.core/*rules*
+             (some-> ~'firelisp.env/*rules*
                      (swap! ~'firelisp.core/merge-rules rules#))
              rules#)
            (catch ~'js/Error e#

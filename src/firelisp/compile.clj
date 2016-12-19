@@ -1,19 +1,12 @@
 (ns firelisp.compile
   (:require [firelisp.template :refer [template] :include-macros true]
-            [firelisp.specs :refer [get-arglists]]
+            [firelisp.specs :refer [get-arglists conf-meta]]
             [clojure.spec :as s :include-macros true]))
 
 (defmacro defop [& body]
-  (let [{:keys [name docstring] :as conf} (s/conform :cljs.core/defn-args body)
+  (let [{:keys [name] :as conf} (s/conform :cljs.core/defn-args body)
         new-args (s/unform :cljs.core/fn-args conf)]
     (template
-      (do
-        (println (quote {:name      (quote ~name)
-                         :docstring ~docstring
-                         :arglists  ~(get-arglists conf)
-                         :fn        ~(cons 'cljs.core/fn new-args)}))
-
-        (swap! firelisp.compile/operators* assoc (quote ~name)
-               {:name      (quote ~name)
-                :docstring ~docstring
-                :fn        ~(cons 'cljs.core/fn new-args)})))))
+      (swap! firelisp.env/terminal-defs assoc (quote ~name)
+             ~(assoc (conf-meta conf)
+                :fn (template ~(cons 'cljs.core/fn new-args)))))))

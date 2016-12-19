@@ -1,12 +1,17 @@
 (ns firelisp.specs
-  (:require #?(:cljs [cljs.spec :as s :include-macros true]
-               :clj [clojure.spec :as s])))
+  (:require [firelisp.template :refer [template] :include-macros true]
+            [clojure.spec :as s :include-macros true]))
 
 (defn get-arglists [conf]
   (mapv #(get-in % [:args :args])
         (case (get-in conf [:bs 0])
           :arity-n (get-in conf [:bs 1 :bodies])
           :arity-1 [(get-in conf [:bs 1])])))
+
+(defn conf-meta [{:keys [name docstring] :as conf}]
+  (template {:name      '~name
+             :docstring ~docstring
+             :arglists  (quote ~(get-arglists conf))}))
 
 ;loaded from gist: https://gist.github.com/viebel/ab64ed95820af42b366889a872dc28ac
 ;;;; destructure
