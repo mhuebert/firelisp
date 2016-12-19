@@ -1,7 +1,8 @@
 (ns firelisp.tests.db
   (:require
     [devcards.core :refer-macros [deftest defcard]]
-    [firelisp.db :as db :refer-macros [at]])
+    [firelisp.db :as db :include-macros true]
+    [firelisp.core :refer-macros [at]])
   (:require-macros
     [cljs.test :refer [is testing]]))
 
@@ -10,8 +11,8 @@
     (let [db (-> db/blank
                  (db/macro signed-in? [] '(not= auth nil))
                  (db/rules
-                   (at "cells"
-                       (at "$uid"
+                   (at ["cells"]
+                       (at [uid]
                            {:validate (signed-in?)}))))]
 
       (is (= (-> db

@@ -1,9 +1,9 @@
 (ns firelisp.tests.emit
   (:require
     [devcards.core :refer-macros [deftest]]
-    [firelisp.db :as db :refer-macros [at]]
+    [firelisp.db :as db :include-macros true]
     [firelisp.compile :refer [compile-expr expand]]
-    [firelisp.core :refer [compile] :include-macros true])
+    [firelisp.core :refer [compile] :refer-macros [at] :include-macros true])
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
@@ -17,9 +17,9 @@
       '(length (child next-data "p")) "newData.child('p').val().length"
       '(< (length next-data) 100) "(newData.val().length < 100)"
       '(length "abc") "'abc'.length"
-      '(in-string? "abc" "b") "'abc'.contains('b')"
-      '(in-string? next-data "b") "newData.val().contains('b')"
-      '(in-string? "abc" next-data) "'abc'.contains(newData.val())"
+      '(includes? "abc" "b") "'abc'.contains('b')"
+      '(includes? next-data "b") "newData.val().contains('b')"
+      '(includes? "abc" next-data) "'abc'.contains(newData.val())"
       '(starts-with? "abc" next-data) "'abc'.beginsWith(newData.val())"
       '(starts-with? next-data "p") "newData.val().beginsWith('p')"
       '(ends-with? "abc" next-data) "'abc'.endsWith(newData.val())"
@@ -51,11 +51,6 @@
     (is (= (compile-expr '[1 "hello"])
            "[1, 'hello']")))
 
-  (testing "no-ops"
-    (is (= (compile-expr '(do [1]))
-           "[1]")))
-
-
   (testing "Snapshot methods"
     (are [expr s]
       (= (compile-expr expr) s)
@@ -73,7 +68,8 @@
       '(parent (parent next-data)) "newData.parent().parent().val()"
       '(child next-data "x") "newData.child('x').val()"
       '(child next-data "x" "y") "newData.child('x' + '/' + 'y').val()"
-      '(has-key? next-data "p") "newData.hasChild('p')"
+      '(contains-key? next-data "p") "newData.hasChild('p')"
+      '(contains-keys? next-data ["p" "q"]) "newData.hasChildren(['p', 'q'])"
       '(child next-data (string? (child prev-root "x"))) "newData.child(root.child('x').isString()).val()")
 
     (at "x" (is (= (compile-expr 'next-root) "newData.parent().val()"))))

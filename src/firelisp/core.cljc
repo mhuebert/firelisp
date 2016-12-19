@@ -5,12 +5,8 @@
     [firelisp.specs]
     [firelisp.paths]
     [firelisp.convert :refer [convert-quotes]]
-    #?@(:cljs [[cljs.core :as core]
-               [cljs.spec :as s :include-macros true]]
-        :clj  [
-    [clojure.core :as core]
-    [clojure.string :as string]
-    [clojure.spec :as s]])))
+    [clojure.spec :as s :include-macros true]
+    [clojure.core :as core]))
 
 (def *defs* 'firelisp.env/*defs*)
 (def core-fn #?(:cljs 'cljs.core/fn
@@ -36,10 +32,9 @@
                                               (update-conf macro-wrap)
                                               (munge-name))
         new-args (s/unform :cljs.core/fn-args conf)]
-    (template (do (println :macro (quote ~conf))
-                  {:name      '~name
-                   :docstring ~docstring
-                   :fn        ~(cons 'cljs.core/fn new-args)}))))
+    (template {:name      '~name
+               :docstring ~docstring
+               :fn        ~(cons 'cljs.core/fn new-args)})))
 
 (core/defmacro defmacro [name & body]
   (template

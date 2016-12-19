@@ -1,10 +1,12 @@
 (ns firelisp.tests.rules
   (:require
     [devcards.core :refer-macros [deftest]]
-    [firelisp.db :as db :refer-macros [at throws]]
-    [firelisp.core :refer [compile add]]
+    [firelisp.db :as db :include-macros true]
+
+    [firelisp.core :refer [compile add] :refer-macros [at]]
     [firelisp.paths :refer [parse-path]])
   (:require-macros
+    [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is testing async]]))
 
 
@@ -28,7 +30,7 @@
            '["x" "y" z])
         "recognize path variables")
 
-    (is (= (compile (at "x/$y/$z"
+    (is (= (compile (at ["x" y z]
                         {:read true}))
            '{"x" {"$y" {"$z" {".read" "true"}}}}))
 

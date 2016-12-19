@@ -210,7 +210,7 @@
       (form-example-compile
         "(upper-case \"some-string\")"
         "(lower-case \"some-string\")"
-        "(in-string? \"some-string\" \"om\")"
+        "(includes? \"some-string\" \"om\")"
         "(starts-with? \"some-string\" \"so\")"
         "(ends-with? \"some-string\" \"so\")"
         "(matches? \"some-string\" #\"str.ng\")"
@@ -288,7 +288,7 @@
 
         "(and-> next-data
   string?
-  (in-string? \"123\"))"
+  (includes? \"123\"))"
 
         )]]
 

@@ -135,3 +135,7 @@
                   result
                   (recur '(let [~@(first bindings)] ~result)
                          (rest bindings))))))
+
+(f/defn object?
+  [data-snapshot]
+  (contains-keys? data-snapshot))

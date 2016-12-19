@@ -1,10 +1,10 @@
 (ns firelisp.tests.standard-lib
   (:require [devcards.core :refer-macros [deftest]]
-            [firelisp.core :as f]
+            [firelisp.core :as f :refer-macros [at]]
             [firelisp.compile :refer [compile-expr expand expand-1]]
             [firelisp.db :as db :include-macros true])
   (:require-macros
-    [firelisp.db :refer [at throws]]
+    [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
 
@@ -137,7 +137,7 @@
            '(and (>= 0 -10) (<= 0 10)))
         "within"))
 
-  (testing "in-string?, in-set?"
+  (testing "includes?, in-set?"
 
     (let [db (-> db/blank
                  (db/rules
@@ -165,4 +165,5 @@
           (f/defn color/black? [x] (= x "#000"))
           (= (expand '(color/black? next-data.color))
              '(= next-data.color "#000")))
-        "Define and use a function with a namespaced symbol")))
+        "Define and use a function with a namespaced symbol"))
+  )

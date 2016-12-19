@@ -2,9 +2,9 @@
   (:require
     [devcards.core :refer-macros [deftest]]
     [firelisp.common :refer [append]]
-    [firelisp.db :as db :refer-macros [at rules]]
+    [firelisp.db :as db :include-macros true]
     [firelisp.compile :as c]
-    [firelisp.core :as f :refer [compile]])
+    [firelisp.core :as f :refer [compile] :refer-macros [at]])
   (:require-macros
     [cljs.test :refer [is testing]]))
 

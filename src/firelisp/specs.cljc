@@ -2,6 +2,12 @@
   (:require #?(:cljs [cljs.spec :as s :include-macros true]
                :clj [clojure.spec :as s])))
 
+(defn get-arglists [conf]
+  (mapv #(get-in % [:args :args])
+        (case (get-in conf [:bs 0])
+          :arity-n (get-in conf [:bs 1 :bodies])
+          :arity-1 [(get-in conf [:bs 1])])))
+
 ;loaded from gist: https://gist.github.com/viebel/ab64ed95820af42b366889a872dc28ac
 ;;;; destructure
 
@@ -39,7 +45,8 @@
                                     :attr (s/? map?)))))
 
 (s/def :cljs.core/fn-args
-  (s/cat :bs (s/alt :arity-1 ::args+body
+  (s/cat :name symbol?
+         :bs (s/alt :arity-1 ::args+body
                     :arity-n (s/cat :bodies (s/+ (s/spec
                                                    ::args+body))
                                     :attr (s/? map?)))))

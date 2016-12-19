@@ -1,11 +1,12 @@
 (ns firelisp.tests.targaryen
   (:require
     [devcards.core :refer-macros [deftest]]
-    [firelisp.db :as db :refer-macros [at throws isn't]]
+    [firelisp.db :as db :include-macros true]
     [firelisp.paths :refer [parse-path]]
-    [firelisp.core :refer [compile add]])
+    [firelisp.core :refer [compile add] :refer-macros [at]])
   (:require-macros
     [cljs.test :refer [is testing]]
+    [firelisp.tests.util :refer [throws isn't]]
     [firelisp.common :refer [with-template-quotes]]))
 
 (deftest targaryen
