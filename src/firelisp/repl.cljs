@@ -28,24 +28,36 @@
                            :docstring "The now variable contains the number of milliseconds since the UNIX epoch according to the Firebase Realtime Database servers. "}
    "root"                 {:anchor    "root"
                            :docstring "The current data at the root of your Firebase Realtime Database. You can use this to read any data in your database in your rule expressions."}
-
    "prev-data"            {:anchor    "data"
                            :docstring "The current data in the database location of the currently executing rule (as opposed to root, which gives you the data for the root of your database)."}
    "next-data"            {:anchor    "nextdata"
                            :docstring "For .write and .validate rules, the newData variable gives you the data that will result if the write is allowed (it is a \"merging\" of the existing data plus the new data being written)."}
    :read                  {:anchor    "read"
                            :docstring "A type of Security Rule which grants a client read access to a Firebase Realtime Database location."}
+   :create                {:docstring "A type of Security Rule applied only if this data snapshot is new. If a :write rule is present, acts to further restrict access, never allowing an operation denied by the :write rule."}
+   :update                {:docstring "A type of Security Rule applied only if this data snapshot is being modified (does not apply to create or delete operations). If a :write rule is present, acts to further restrict access, never allowing an operation denied by the :write rule."}
+   :delete                {:docstring "A type of Security Rule applied only if this data snapshot is being removed. If a :write rule is present, acts to further restrict access, never allowing an operation denied by the :write rule."}
    :write                 {:anchor    "write"
                            :docstring "A type of Security Rule which grants a client write access to a Firebase Realtime Database location. A :write rule which grants permission to write to a location will also allow writing to any descendants of that location, even if the descendants have their own :write rules which fail."}
    :validate              {:anchor    "validate"
-                           :docstring "A :validate rule is used once a :write rule has granted access, to ensure that the data being written conforms to a specific standard. In addition to a :write granting access, all relevant :validate rules must succeed before a write is allowed."}
+                           :docstring "A type of Security Rule used once a :write rule has granted access, to ensure that the data being written conforms to a specific standard. In addition to a :write granting access, all relevant :validate rules must succeed before a write is allowed. A :validate rule is **not** evaluated for nodes that are being deleted."}
    :index                 {:anchor    "indexon"
                            :docstring "Tells the Firebase Realtime Database servers to index specific keys in your data to improve the performance of your queries."}
    })
 
 (defn doc [sym]
-  (let [{:keys [name docstring arglists]} (or (get @terminal-defs sym)
-                                              (get @*defs* sym))
+  (let [{:keys [name docstring arglists siblings parent]} (or (get @terminal-defs sym)
+                                                              (get @*defs* sym)
+                                                              (get symbol-meta sym)
+                                                              (let [symbol-parts (string/split (str sym) ".")]
+                                                                (cond-> (get-in symbol-meta symbol-parts)
+                                                                        (> (count symbol-parts) 1) (assoc :siblings (->> (get-in symbol-meta (drop-last symbol-parts))
+                                                                                                                         keys
+                                                                                                                         (filter string?)
+                                                                                                                         sort
+                                                                                                                         (mapv symbol))
+                                                                                                          :parent (string/join "." (drop-last symbol-parts))))))
+        name (or name sym)
         arglists (some->> arglists (string/join ", "))
         divider (str "\n" (apply str (take 10 (repeat \-))) "\n")]
     (str name
@@ -53,9 +65,14 @@
          arglists
          (when arglists divider)
          docstring
+         (when siblings (str "\n\n" parent " contains: " siblings))
          "\n\n")))
 
 (js/setTimeout
   #(doseq [s '[+
                child
+               :create
+               auth.uid
+               auth.token.email
+               now
                get-in]] (println (doc s))) 100)
