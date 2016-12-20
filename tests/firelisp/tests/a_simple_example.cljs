@@ -284,7 +284,7 @@
         "(cond 1 2
   3 4
   :else 5)"
-        "(in-set? #{\"a\" \"b\"} next-data)"
+        "(set-contains? #{\"a\" \"b\"} next-data)"
 
         "(and-> next-data
   string?

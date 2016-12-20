@@ -64,7 +64,7 @@
   (let [conf (-> (s/conform :cljs.core/defn-args body)
                  (update-conf fn-wrap)
                  (update :name munge-sym))
-        new-args (s/unform :cljs.core/defn-args conf)]
+        new-args (s/unform :cljs.core/fn-args conf)]
     (assoc (conf-meta conf) :value (template ~(cons 'cljs.core/fn new-args)))))
 
 (core/defmacro defn [& body]
@@ -124,7 +124,9 @@
 
     (template
       (try (let [segments# (~'firelisp.paths/parse-path ~path)
-                 leaf-rules# (binding [~'firelisp.env/*path* (apply conj ~'firelisp.env/*path* segments#)
+                 leaf-rules# (binding [~'firelisp.env/*context* (-> ~'firelisp.env/*context*
+                                                                    (update :path into segments#)
+                                                                    (update :symbols merge (firelisp.core/path-context segments#)))
                                        ~'firelisp.env/*rules* (atom ~blank-rules)]
                                ~@(convert-quotes body)
                                @~'firelisp.env/*rules*)

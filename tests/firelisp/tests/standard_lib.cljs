@@ -137,23 +137,23 @@
            '(and (>= 0 -10) (<= 0 10)))
         "within"))
 
-  (testing "includes?, in-set?"
+  (testing "includes?, set-contains?"
 
     (let [db (-> db/blank
                  (db/rules
                    {:write true}
                    (at ["users" uid "roles"]
-                       {:validate (in-set? #{"admin"
+                       {:validate (set-contains? #{"admin"
                                              4
                                              auth.uid} next-data)}))
                  (db/auth! {:uid "my-uid"}))]
 
       (is (db/set? db "users/matt/roles" "admin")
-          "in-set? with string")
+          "set-contains? with string")
       (is (db/set? db "users/matt/roles" 4)
-          "in-set? with number")
+          "set-contains? with number")
       (is (db/set? db "users/matt/roles" "my-uid")
-          "in-set? with auth value")
+          "set-contains? with auth value")
       (is (not (db/set? db "users/matt/roles" "other-string"))
           "value not contained in set")
       (is (db/set db "users/matt/roles" nil)

@@ -2,7 +2,7 @@
 
 (ns firelisp.compile
   (:require [clojure.string :as string]
-            [firelisp.env :refer [*defs* *path* terminal-defs]]
+            [firelisp.env :refer [*defs* *context* terminal-defs]]
             [firelisp.walk :refer [postorder-replace]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
@@ -23,8 +23,6 @@
   ([js-operator args] (method js-operator args ", "))
   ([js-operator args separator]
    (str (emit (first args)) "." js-operator (wrap (string/join separator (map emit (rest args)))))))
-
-
 
 (defop +
   "Used to add variables or for string concatenation."
@@ -192,8 +190,6 @@
   [string]
   (str (emit string) ".length"))
 
-
-
 (defmethod emit :vector
   [{:keys [args]}]
   (str "[" (string/join ", " (map emit args)) "]"))
@@ -214,7 +210,7 @@
     nil :nil
     (= form 'now) :timestamp
     (cond (number? form) :number
-          (symbol? form) (if (contains? (set *path*) form)
+          (symbol? form) (if (string/starts-with? (str form) "$") #_(contains? (set (:path *context*)) form)
                            :path-variable
                            :symbol)
           (string? form) :string
@@ -233,8 +229,8 @@
     (:string
       :keyword) (str "'" (name value) "'")
     (:boolean
-      :symbol) (str value)
-    :path-variable (str "$" value)
+      :symbol
+      :path-variable) (str value)
     :snapshot (cond->
                 (try (case mode
                        :read (case value
@@ -249,7 +245,7 @@
                                 next-data "newData"
                                 prev-root "root"
                                 next-root (str "newData"
-                                               (apply str (take (count *path*)
+                                               (apply str (take (count (:path *context*))
                                                                 (repeat ".parent()"))))))
                      (catch js/Error e
                        (prn (str "Invalid data reference for rule type: " mode ", " value))
@@ -269,17 +265,17 @@
   [opts form]
   (merge opts
          {:type         :vector
-          :path         *path*
           :args         (map (partial node (assoc opts :coerce-to-val true)) (seq form))
           :as-snapshot? false}))
 
-(defn snapshot-method? [sym]
+(defn snapshot-method?
+  "By convention, methods that operate directly on snapshots begin arglists with 'data-snapshot."
+  [sym]
   (= 'data-snapshot (get-in @terminal-defs [sym :arglists 0 0])))
 
 (defmethod node :list
   [opts [op & args]]
   (merge {:type     :list
-          :path     *path*
           :operator op
           :args     (cond-> (mapv (partial node (dissoc opts :as-snapshot?)) args)
                             (snapshot-method? op) (update 0 assoc :as-snapshot? true))}
@@ -288,7 +284,6 @@
 (defmethod node :atom
   [opts form]
   (merge {:type      :atom
-          :path      *path*
           :value     form
           :atom-type (atom-type form)}
          opts))
@@ -298,11 +293,13 @@
 (defn expand-1
   ([form] (expand-1 @*defs* form))
   ([defs form]
-   (println "\n\n\n\n\n\n start postorder: " form "\n\n" (keys defs))
    (postorder-replace
      (fn [expr]
        (cond (symbol? expr)
-             (get-in defs [(munge-sym expr) :value] expr)
+             (or
+               (get-in defs [(munge-sym expr) :value])
+               (get-in *context* [:symbols (munge-sym expr)])
+               expr)
 
              (and (seq? expr) (fn? (first expr)))
              (apply (first expr) (rest expr))

@@ -1,7 +1,7 @@
 (ns firelisp.core
   (:require
     [static.targaryen]
-    [firelisp.env :refer [*rules* *path*]]
+    [firelisp.env :refer [*rules* *context*]]
     [firelisp.repl]
     [firelisp.standard-lib]
     [firelisp.compile :refer [compile-expr]]
@@ -82,6 +82,11 @@
 
 (defn log [x] (prn x) x)
 
+(defn path-context [path]
+  (reduce (fn [m k]
+              (cond-> m
+                      (symbol? k) (assoc k (symbol (str "$" k))))) {} path))
+
 (defn compile
   ([rules] (compile rules [] 0))
   ([{:keys [create read update delete index write validate children] :as rules} path depth]
@@ -89,7 +94,8 @@
      (let [validate (cond-> validate
                             (seq children) (disj '(object? next-data)))]
        (merge
-         (binding [*path* path]
+         (binding [*context* {:path path
+                              :symbols (path-context path)} ]
            (cond-> {}
                    (seq read) (assoc ".read" (compile-expr {:mode :read}
                                                            '(and ~@read)))
