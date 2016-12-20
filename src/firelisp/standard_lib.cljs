@@ -11,7 +11,7 @@
 (defn flatten-nested [sym & [docstring]]
   {:name      sym
    :docstring docstring
-   :fn        (with-template-quotes
+   :value        (with-template-quotes
                 (fn [& form]
                   (loop [result '(~sym)
                          remaining form]
@@ -26,7 +26,7 @@
 (defn flatten-child [& args]
   {:name      'flatten-child
    :docstring "Get child of data location in database"
-   :fn        (with-template-quotes
+   :value        (with-template-quotes
                 (if (and (seq? (first args))
                          (= 'child (ffirst args)))
                   '(child ~@(rest (first args)) ~@(rest args))

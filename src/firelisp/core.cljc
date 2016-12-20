@@ -3,19 +3,34 @@
   (:require
     [firelisp.template :refer [template] :include-macros true]
     [firelisp.specs :refer [get-arglists conf-meta]]
-    [firelisp.paths]
+    [firelisp.paths :refer [munge-sym]]
     [firelisp.convert :refer [convert-quotes]]
     [clojure.spec :as s :include-macros true]
     [clojure.core :as core]))
 
-(def *defs* 'firelisp.env/*defs*)
-(def core-fn #?(:cljs 'cljs.core/fn
-                :clj  'clojure.core/fn))
+(defonce *defs* 'firelisp.env/*defs*)
+(defonce core-fn #?(:cljs 'cljs.core/fn
+                    :clj  'clojure.core/fn))
+(defonce blank-rules
+         {:validate #{}
 
-(core/defn munge-name [b]
-  (update b :name #(-> (str %)
-                       (string/replace "/" "__")
-                       symbol)  #_(comp symbol munge str)))
+          :create   #{}
+          :read     #{}
+          :update   #{}
+          :delete   #{}
+
+          :write    #{}
+          :index    #{}
+          :children #{}})
+
+
+
+(core/defmacro def [name value]
+  (template (swap! ~*defs* assoc (firelisp.paths/munge-sym ~name) {:name  ~name
+                                                                   :value ~value})))
+
+(core/defmacro def* [name value]
+  (template (swap! ~*defs* assoc ~name ~value)))
 
 (core/defn update-conf [{[arity] :bs :as conf} update-fn]
   (case arity
@@ -30,14 +45,14 @@
 (core/defmacro macro [& body]
   (let [conf (-> (s/conform :cljs.core/defn-args body)
                  (update-conf macro-wrap)
-                 (munge-name))
+                 (update :name munge-sym))
         new-args (s/unform :cljs.core/fn-args conf)]
-    (assoc (conf-meta conf) :fn (template ~(cons 'cljs.core/fn new-args)))))
+    (assoc (conf-meta conf) :value (template ~(cons 'cljs.core/fn new-args)))))
 
 (core/defmacro defmacro [name & body]
   (template
     (let [{name# :name :as macro#} (firelisp.core/macro ~name ~@body)]
-      (swap! ~*defs* assoc name# macro#))))
+      (firelisp.core/def* name# macro#))))
 
 (core/defn fn-wrap
   [{body :body {[& arglist] :args} :args :as b}]
@@ -48,14 +63,14 @@
 (core/defmacro fn [& body]
   (let [conf (-> (s/conform :cljs.core/defn-args body)
                  (update-conf fn-wrap)
-                 (munge-name))
+                 (update :name munge-sym))
         new-args (s/unform :cljs.core/defn-args conf)]
-    (assoc (conf-meta conf) :fn (template ~(cons 'cljs.core/fn new-args)))))
+    (assoc (conf-meta conf) :value (template ~(cons 'cljs.core/fn new-args)))))
 
 (core/defmacro defn [& body]
   (template
     (let [{name# :name :as fn#} (firelisp.core/fn ~@body)]
-      (swap! ~*defs* assoc name# fn#))))
+      (firelisp.core/def* name# fn#))))
 
 ;; X docstrings
 ;; - namespaces for defs?
@@ -79,17 +94,7 @@
              '(let [a 1 b 2]
                 (+ a b)))))
 
-(def blank-rules
-  {:validate #{}
 
-   :create   #{}
-   :read     #{}
-   :update   #{}
-   :delete   #{}
-
-   :write    #{}
-   :index    #{}
-   :children #{}})
 
 (core/defmacro authorize [m]
   (template (do

@@ -200,7 +200,7 @@
 
 (defmethod emit :list
   [{:keys [as-snapshot? operator args] :as n}]
-  (apply (get-in @terminal-defs [operator :fn] #(println "Operator not found: " operator))
+  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator))
          (update args 0 assoc :list-as-snapshot? as-snapshot?)))
 
 (defn atom-type [form]
@@ -297,19 +297,17 @@
 
 (defn expand-1
   ([form] (expand-1 @*defs* form))
-  ([fns form]
+  ([defs form]
+   (println "\n\n\n\n\n\n start postorder: " form "\n\n" (keys defs))
    (postorder-replace
      (fn [expr]
-       (if (seq? expr)
-         (if-let [operator (some->> (first expr)
-                                    (munge-sym)
-                                    (get fns)
-                                    (:fn))]
-           (apply operator (rest expr))
-           (do
-             (when-not (contains? @terminal-defs (first expr)) (prn "Operator not found: " (first expr)))
-             expr))
-         expr)) form)))
+       (cond (symbol? expr)
+             (get-in defs [(munge-sym expr) :value] expr)
+
+             (and (seq? expr) (fn? (first expr)))
+             (apply (first expr) (rest expr))
+
+             :else expr)) form)))
 
 (defn expand
   [expr]

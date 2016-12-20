@@ -9,4 +9,4 @@
     (template
       (swap! firelisp.env/terminal-defs assoc (quote ~name)
              ~(assoc (conf-meta conf)
-                :fn (template ~(cons 'cljs.core/fn new-args)))))))
+                :value (template ~(cons 'cljs.core/fn new-args)))))))

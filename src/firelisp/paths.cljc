@@ -33,3 +33,13 @@
                      (symbol? next-segment) (conj results next-segment)
                      :else (conj results next-segment))
                remaining)))))
+
+(defn as-symbol
+           "Unquote symbols"
+           [n]
+           (if (seq? n) (second n) n))
+
+(defn munge-sym [sym]
+  (-> (str (as-symbol sym))
+      (string/replace "/" "__")
+      symbol))

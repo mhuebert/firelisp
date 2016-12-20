@@ -166,4 +166,15 @@
           (= (expand '(color/black? next-data.color))
              '(= next-data.color "#000")))
         "Define and use a function with a namespaced symbol"))
+
+  (testing "def"
+
+    (is (= (do (f/def 'xyz "ex why zee")
+               (expand 'xyz)) "ex why zee")
+        "Can def a value")
+
+    (is (= (do (f/def 'colors/black "#000")
+               (expand 'colors/black)) "#000"))
+
+    )
   )
