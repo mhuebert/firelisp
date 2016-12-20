@@ -7,5 +7,5 @@
                             (= (first x) 'quote)
                             (not (and (symbol? (second x))
                                       (= 2 (count x)))))
-                     (cons 'firelisp.template/template (rest x))
+                     (cons 'firelisp.template/t (rest x))
                      x)) form))

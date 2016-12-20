@@ -1,6 +1,7 @@
 (ns firelisp.tests.standard-lib
   (:require [devcards.core :refer-macros [deftest]]
             [firelisp.core :as f :refer-macros [at]]
+            [firelisp.template :refer [t] :include-macros true]
             [firelisp.compile :refer [compile-expr expand expand-1]]
             [firelisp.db :as db :include-macros true])
   (:require-macros
@@ -8,7 +9,73 @@
     [cljs.test :refer [is are testing async]]))
 
 
+
 (deftest standard-lib
+
+  (testing "if-let"
+    (is (= (expand '(if-let [x 1] x "not-one"))
+           '(if 1 1 "not-one")))
+
+    (is (= (expand '(if-let [x (= 10 10)] x false))
+           '(if (= 10 10) (= 10 10) false))))
+
+  (testing "let"
+
+    (at [xx]
+        (is (= (compile-expr '(let [x auth.token]
+                                x))
+               "auth.token")))
+
+    (is (= (compile-expr '(let [x auth.token
+                                y "matt"]
+                            (let [x auth.uid]
+                              (and (= (get-in next-root ["admin" "uid"]) x)
+                                   (= (get-in next-root ["admin" "name"]) y)))))
+           "((newData.child('admin' + '/' + 'uid').val() === auth.uid) && (newData.child('admin' + '/' + 'name').val() === 'matt'))"))
+
+    (testing "multiple bindings"
+
+      (is (= (expand '(let [x 10
+                            x 11
+                            y (+ x 12)]
+                        (+ x y)))
+             '(+ 11 11 12))
+          "multiple let bindings expand to nested lets")
+
+      (is (= (compile-expr '(let [x 10
+                                  x 11
+                                  y (+ x 12)]
+                              (+ x y)))
+             "(11 + 11 + 12)")
+          "multiple let bindings expand to nested lets"))
+    (testing "f/let"
+
+      (is (= (f/let [a-str "hello"
+                     a-fn (fn [n] (+ n 1))
+                     a-fn* #(+ % 1)
+                     a-macro (macro [n a-str] (into [] (take 3 (repeat a-str))))]
+               (compile-expr '[a-str
+                               (a-fn 2)
+                               (a-fn* 2)
+                               (a-macro 3 "q")]))
+             "['hello', (2 + 1), (2 + 1), ['q', 'q', 'q']]")
+          "f/let with string, (fn..), #(..), (macro ..)")
+
+      (is (true? (f/let [x (fn [y] (+ 0 y))
+                         x (fn [y] (+ 1 y))
+                         z 99
+                         z 100]
+
+                   (and (= (compile-expr '(x 1))
+                           "(1 + 1)")
+                        (= (compile-expr '(x z))
+                           "(1 + 100)")
+                        (= (compile-expr '(let [z 101] (x z)))
+                           "(1 + 101)")
+                        (= (compile-expr '(let [z 101
+                                                z 102] (x z)))
+                           "(1 + 102)")
+                        ))))))
 
   "**Reading from the database**
 
@@ -40,7 +107,7 @@
     )
 
   (f/defmacro admin? [uid]
-              '(= (child next-root "users" ~uid "admin") true))
+    '(= (child next-root "users" ~uid "admin") true))
 
 
   (testing "Functions"
@@ -54,34 +121,9 @@
            "(newData.child('users' + '/' + auth.uid + '/' + 'admin').val() === true)"))
 
     ;; depracated anonymous fn/macro
-    #_(is (= (let [destructure-test (f/macro [x & args] '(= ~x ~(last args)))]
+    #_(is (= (let [destructure-test (f/macro* [x & args] '(= ~x ~(last args)))]
                (compile-expr (destructure-test "hello" "hello")))
              "('hello' === 'hello')")))
-
-  (testing "let"
-
-    (is (= (compile-expr '(let [x auth.token
-                                y "matt"]
-                            (let [x auth.uid]
-                              (and (= (get-in next-root ["admin" "uid"]) x)
-                                   (= (get-in next-root ["admin" "name"]) y)))))
-           "((newData.child('admin' + '/' + 'uid').val() === auth.uid) && (newData.child('admin' + '/' + 'name').val() === 'matt'))"))
-
-    (testing "multiple bindings"
-      (is (= (expand-1 '(let [x 10
-                              x 11
-                              y (+ x 12)]
-                          (+ x y)))
-             '(let [x 10]
-                (let [x 11]
-                  (let [y (+ x 12)]
-                    (+ x y)))))
-          "multiple let bindings expand to nested lets")
-      (is (= (expand '(let [x 10
-                            x 11
-                            y (+ x 12)]
-                        (+ x y)))
-             '(+ 11 11 12)))))
 
   "**Macros**"
 
@@ -93,6 +135,10 @@
                                 :else 5))
            "(1 ? 2 : (3 ? 4 : 5))"))
 
+    (is (= (expand '(cond 1 2 3 4))
+           '(if 1 2
+                  (if 3 4))))
+
     (is (= (expand '(cond 1 2
                           3 4
                           :else 5))
@@ -102,11 +148,34 @@
 
     (is (= (expand '(cond "a" 1
                           "b" 2))
-           (expand '(cond "a" 1
-                          "b" 2
-                          :else false))
-           '(if "a" 1 (if "b" 2 false)))
-        "if no :else predicate, default to false"))
+           '(if "a" 1 (if "b" 2))))
+
+    (is (= (expand '(cond :let [x 1]
+                          (= x 5) true))
+           '(if (= 1 5) true)))
+    (is (= (compile-expr '(cond :let [x 1]
+                                (= x 5) true))
+           (compile-expr '(let [x 1]
+                            (cond (= x 5) true)))
+           (compile-expr '(let [x 1]
+                            (if (= x 5) true)))
+           (compile-expr '(let [x 1]
+                            (cond :when (= x 5)
+                                  :else true)))
+           (compile-expr '(cond :let [x 1]
+                                :when-let [res (= x 5)]
+                                :else true))
+           (compile-expr '(cond :let [x 1
+                                      res (= x 5)]
+                                :when res
+                                :else true))
+           (compile-expr '(cond :let [x 1
+                                      res (= x 5)]
+                                :when res
+                                true))
+           "((1 === 5) ? true : false)"))
+
+    )
 
   (testing "-> (threading macro)"
     (is (= (expand '(-> next-data
@@ -144,8 +213,8 @@
                    {:write true}
                    (at ["users" uid "roles"]
                        {:validate (set-contains? #{"admin"
-                                             4
-                                             auth.uid} next-data)}))
+                                                   4
+                                                   auth.uid} next-data)}))
                  (db/auth! {:uid "my-uid"}))]
 
       (is (db/set? db "users/matt/roles" "admin")

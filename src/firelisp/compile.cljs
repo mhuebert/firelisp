@@ -2,8 +2,8 @@
 
 (ns firelisp.compile
   (:require [clojure.string :as string]
-            [firelisp.env :refer [*defs* *context* terminal-defs]]
-            [firelisp.walk :refer [postorder-replace]])
+            [clojure.walk :as walk]
+            [firelisp.env :refer [*defs* *context* terminal-defs]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
 (def munge-sym #(-> (str %)
@@ -13,6 +13,14 @@
   (str "(" s ")"))
 
 (defmulti emit :type)
+
+(defn node-type [form]
+  (cond (vector? form) :vector
+        (seq? form) :list
+        :else :atom))
+
+(defmulti node (fn [_ form]
+                 (node-type form)))
 
 (defn infix [js-operator args]
   (if (= 1 (count args))
@@ -97,7 +105,8 @@
 (defop if
   "If the condition evaluates to true, the second operand is evaluated. If the condition is false, the third operand is evaluated."
   ([condition result-if-true]
-   (if condition result-if-true false))
+    ;; recurring to `if` doesn't work, `if` is interpreted as Clojure's if
+   (wrap (str (emit condition) " ? " (emit result-if-true) " : " (emit (node {} 'false)))))
   ([condition result-if-true result-if-false]
    (wrap (str (emit condition) " ? " (emit result-if-true) " : " (emit result-if-false)))))
 
@@ -190,13 +199,25 @@
   [string]
   (str (emit string) ".length"))
 
+(defop let
+  "Bind symbols to values"
+  [bindings body]
+  (loop [pairs (partition 2 (:args bindings))
+         context *context*]
+
+    (if (empty? pairs)
+      (binding [*context* context] (emit body))
+      (recur (rest pairs)
+             (binding [*context* context]
+               (update context :bindings assoc (get (ffirst pairs) :value) (emit (second (first pairs)))))))))
+
 (defmethod emit :vector
   [{:keys [args]}]
   (str "[" (string/join ", " (map emit args)) "]"))
 
 (defmethod emit :list
   [{:keys [as-snapshot? operator args] :as n}]
-  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator))
+  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator firelisp.env/*context*))
          (update args 0 assoc :list-as-snapshot? as-snapshot?)))
 
 (defn atom-type [form]
@@ -210,9 +231,7 @@
     nil :nil
     (= form 'now) :timestamp
     (cond (number? form) :number
-          (symbol? form) (if (string/starts-with? (str form) "$") #_(contains? (set (:path *context*)) form)
-                           :path-variable
-                           :symbol)
+          (symbol? form) :symbol
           (string? form) :string
           (regexp? form) :regexp
           (boolean? form) :boolean
@@ -228,9 +247,8 @@
       :regexp) value
     (:string
       :keyword) (str "'" (name value) "'")
-    (:boolean
-      :symbol
-      :path-variable) (str value)
+    :boolean (str value)
+    :symbol (get-in *context* [:bindings value] (str value))
     :snapshot (cond->
                 (try (case mode
                        :read (case value
@@ -253,13 +271,7 @@
                 (not as-snapshot?) (str ".val()"))
     (throw (js/Error. (str "Unrecognized atom type: " atom-type ", " value)))))
 
-(defn node-type [form]
-  (cond (vector? form) :vector
-        (seq? form) :list
-        :else :atom))
 
-(defmulti node (fn [_ form]
-                 (node-type form)))
 
 (defmethod node :vector
   [opts form]
@@ -273,12 +285,16 @@
   [sym]
   (= 'data-snapshot (get-in @terminal-defs [sym :arglists 0 0])))
 
+(defmethod node :let
+  [opts [op bindings body]]
+  (node (update opts :bindings merge (apply hash-map bindings)) body))
+
 (defmethod node :list
   [opts [op & args]]
-  (merge {:type     :list
-          :operator op
-          :args     (cond-> (mapv (partial node (dissoc opts :as-snapshot?)) args)
-                            (snapshot-method? op) (update 0 assoc :as-snapshot? true))}
+  (merge (cond-> {:type     :list
+                  :operator op
+                  :args     (mapv (partial node (dissoc opts :as-snapshot?)) args)}
+                 (snapshot-method? op) (update-in [:args 0] assoc :as-snapshot? true))
          opts))
 
 (defmethod node :atom
@@ -293,12 +309,12 @@
 (defn expand-1
   ([form] (expand-1 @*defs* form))
   ([defs form]
-   (postorder-replace
+   (walk/postwalk
      (fn [expr]
        (cond (symbol? expr)
              (or
                (get-in defs [(munge-sym expr) :value])
-               (get-in *context* [:symbols (munge-sym expr)])
+               (get-in *context* [:bindings (munge-sym expr)])
                expr)
 
              (and (seq? expr) (fn? (first expr)))
@@ -311,19 +327,19 @@
   (loop [current-expr expr
          count 0]
     (let [next-expr (expand-1 @*defs* current-expr)]
-      (when (> count 100)
-        (throw "Expand-fns probably in a loop, iterated 100 times"))
-      (if (= next-expr current-expr)
-        next-expr
-        (recur next-expr
-               (inc count))))))
+         (when (> count 100)
+           (throw "Expand-fns probably in a loop, iterated 100 times"))
+         (if (= next-expr current-expr)
+           next-expr
+           (recur next-expr
+                  (inc count))))))
 
 (defn compile-expr
   ([expr] (compile-expr {} expr))
   ([opts expr]
    (let [opts (merge {:mode         *mode*
                       :as-snapshot? false} opts)]
-     (->> expr
-          (expand)
-          (node opts)
-          (emit)))))
+        (->> expr
+             (expand)
+             (node opts)
+             (emit)))))

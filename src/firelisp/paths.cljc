@@ -1,6 +1,6 @@
 (ns firelisp.paths
   (:require [clojure.string :as string]
-            [firelisp.template :refer [template] :include-macros true]))
+            [clojure.walk :as walk]))
 
 (defn split-path [s]
   (let [trimmed-s (second (re-find #"^/?(.*)/?$" s))]
@@ -35,9 +35,9 @@
                remaining)))))
 
 (defn as-symbol
-           "Unquote symbols"
-           [n]
-           (if (seq? n) (second n) n))
+  "Unquote symbols"
+  [n]
+  (if (seq? n) (second n) n))
 
 (defn munge-sym [sym]
   (-> (str (as-symbol sym))

@@ -42,19 +42,35 @@
         '+     (flatten-nested '+ "Javascript add (adds numbers, concatenates strings)")
         '*     (flatten-nested '* "Javascript multiply")})
 
-(f/defn when [pred body]
-  (if pred body true))
+(f/defmacro if-let
+  ([bindings body]
+   '(let ~bindings
+      (if ~(first bindings) ~body)))
+  ([bindings body else]
+   '(let ~bindings
+      (if ~(first bindings) ~body ~else))))
 
-(f/defmacro cond [& args]
-  (let [[[else expr] & pairs] (reverse (partition 2 args))]
-    (loop [pairs pairs
-           expr (if (= :else else)
-                  expr
-                  '(if ~else ~expr false))]
-      (if-let [[pred result] (first pairs)]
-        (recur (rest pairs)
-               '(if ~pred ~result ~expr))
-        expr))))
+(f/defmacro when-let [bindings body]
+  '(if-let ~bindings ~body))
+
+(f/defmacro when [pred body]
+  '(if ~pred ~body))
+
+(f/defmacro cond [& clauses]
+  (when-let [[test expr & more-clauses] (seq clauses)]
+            (if (= :else test)
+              expr
+              (if (= 1 (count clauses))
+                test
+                (if (empty? more-clauses)
+                  '(if ~test ~expr)
+                  (if (= :let test)
+                    '(let ~expr (cond ~@more-clauses))
+                    (if (= :when test)
+                      '(when ~expr (cond ~@more-clauses))
+                      (if (= :when-let test)
+                        '(when-let ~expr (cond ~@more-clauses))
+                        '(if ~test ~expr (cond ~@more-clauses))))))))))
 
 (defn root? [s]
   (= \/ (first (name (if (seq? s) (first s) s)))))

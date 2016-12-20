@@ -1,11 +1,10 @@
 (ns firelisp.db
-  (:require [firelisp.template :refer [template]]))
+  (:require [firelisp.template :refer [t]]))
 
 (defmacro rules [db & body]
-  (template (firelisp.db/register-rules ~db (firelisp.core/at [] ~@body))))
+  (t (firelisp.db/register-rules ~db (firelisp.core/at [] ~@body))))
 
 (defmacro macro [db & body]
-  (template
-    (let [{name# :name :as macro#} (firelisp.core/macro ~@body)]
+  (t
+    (let [{name# :name :as macro#} (firelisp.core/macro* ~body)]
       (update ~db :functions assoc name# macro#))))
-

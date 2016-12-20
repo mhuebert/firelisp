@@ -4,7 +4,7 @@
 (def ^:dynamic *rules* nil)
 (def ^:dynamic *path* [])
 (def ^:dynamic *context* {:path    []
-                          :symbols {}})
+                          :bindings {}})
 (defonce ^:dynamic *defs* (atom {}))
 (defonce terminal-defs (atom {}))
 

@@ -46,6 +46,6 @@
         :else (throw "Unknown collection type")))
     :else `'~form))
 
-(defmacro template [form]
+(defmacro t [form]
   (binding [*gensyms* (atom {})]
     (quote-fn* form)))

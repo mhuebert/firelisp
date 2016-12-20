@@ -45,9 +45,17 @@
 
 (defn doc [sym]
   (let [{:keys [name docstring arglists]} (or (get @terminal-defs sym)
-                                              (get @*defs* sym))]
-    (str name (when arglists (str "\n--------------\n" (string/join ", " arglists))) "\n---------------\n" docstring "\n\n")))
+                                              (get @*defs* sym))
+        arglists (some->> arglists (string/join ", "))
+        divider (str "\n" (apply str (take 10 (repeat \-))) "\n")]
+    (str name
+         divider
+         arglists
+         (when arglists divider)
+         docstring
+         "\n\n")))
 
-(doseq [s '[+
-            child
-            get-in]] (println (doc s)))
+(js/setTimeout
+  #(doseq [s '[+
+               child
+               get-in]] (println (doc s))) 100)

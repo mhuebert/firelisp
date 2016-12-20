@@ -8,7 +8,7 @@
     [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
     [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
   (:require-macros
-    [firelisp.core :refer [at rules]]))
+    [firelisp.core :refer [at]]))
 
 (defn add
   [path & rules]
@@ -30,7 +30,7 @@
 
 (defn pfx [prefix m]
   (reduce-kv (fn [m k v]
-                 (cond-> m
+                  (cond-> m
                          (cljs.core/string? v) (assoc k (str prefix "." v))))
              m m))
 
@@ -47,8 +47,8 @@
 
 (defn filter-by-value [pred m]
   (reduce-kv (fn [m k v] (cond-> m
-                                 (pred v) (assoc k v)
-                                 (map? v) (assoc k (filter-by-value pred v)))) {} m))
+                                  (pred v) (assoc k v)
+                                  (map? v) (assoc k (filter-by-value pred v)))) {} m))
 
 (letfn [(merge-in* [a b]
           (cond (map? a)
@@ -84,7 +84,7 @@
 
 (defn path-context [path]
   (reduce (fn [m k]
-              (cond-> m
+               (cond-> m
                       (symbol? k) (assoc k (symbol (str "$" k))))) {} path))
 
 (defn compile
@@ -94,8 +94,9 @@
      (let [validate (cond-> validate
                             (seq children) (disj '(object? next-data)))]
        (merge
-         (binding [*context* {:path path
-                              :symbols (path-context path)} ]
+         (binding [*context* (-> *context*
+                                 (assoc :path path)
+                                 (clojure.core/update :bindings merge (path-context path)))]
            (cond-> {}
                    (seq read) (assoc ".read" (compile-expr {:mode :read}
                                                            '(and ~@read)))
@@ -104,9 +105,9 @@
                    (assoc ".write" (compile-expr {:mode :write}
                                                  (if (seq write)
                                                    (cond-> '(and ~@write)
-                                                           (seq create) (append '(when ~(:create cud-preds) (and ~@create)))
-                                                           (seq update) (append '(when ~(:update cud-preds) (and ~@update)))
-                                                           (seq delete) (append '(when ~(:delete cud-preds) (and ~@delete))))
+                                                           (seq create) (append '(if ~(:create cud-preds) (and ~@create) true))
+                                                           (seq update) (append '(if ~(:update cud-preds) (and ~@update) true))
+                                                           (seq delete) (append '(if ~(:delete cud-preds) (and ~@delete) true)))
                                                    (cond->> 'false
                                                             (seq create) (append '(if ~(:create cud-preds) (and ~@create)))
                                                             (seq update) (append '(if ~(:update cud-preds) (and ~@update)))
@@ -119,7 +120,7 @@
                                                                     (seq children)
                                                                     (append '(contains-keys? next-data [~@children])))))))
          (reduce-kv (fn [m k v]
-                        (assoc m (munge (cond->> k
+                         (assoc m (munge (cond->> k
                                                  (symbol? k) (str "$")))
                                  (compile v (conj path k) (inc depth))))
                     {}
