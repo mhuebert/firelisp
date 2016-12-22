@@ -1,4 +1,5 @@
-(ns firelisp.template)
+(ns firelisp.template
+  (:require [clojure.walk :as walk]))
 
 ;template quoting:
 ;
@@ -20,12 +21,14 @@
       sym)))
 
 (defn unquote? [form]
-  (and (seq? form) (= (first form) 'clojure.core/unquote)))
+  (and (seq? form) (#{'clojure.core/unquote
+                      '•} (first form))))
 
 (defn unquote-splicing? [form]
   (and (seq? form) (= (first form) 'clojure.core/unquote-splicing)))
 
-(defn- quote-fn* [form]
+(defn- quote-fn*
+  [form]
   (cond
     (symbol? form) `'~(resolve-sym form)
     (unquote? form) (second form)
@@ -49,3 +52,7 @@
 (defmacro t [form]
   (binding [*gensyms* (atom {})]
     (quote-fn* form)))
+
+(defmacro •t [unquote-ops form]
+  (binding [*gensyms* (atom {})]
+    (quote-fn* (walk/postwalk (fn [x] (if (and (seq? x) (contains? (second unquote-ops) (first x))) `(~'• ~x) x)) form))))

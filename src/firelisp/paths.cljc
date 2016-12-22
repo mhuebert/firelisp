@@ -40,13 +40,24 @@
                      :else (conj results next-segment))
                remaining)))))
 
-(defn as-symbol
+
+(defn dequote-symbols
   "Unquote symbols"
   [n]
   (if (seq? n) (second n) n))
 
+(defn as-symbol [sym]
+  (when (symbol? (dequote-symbols sym)) sym))
+
+(defn elide-core
+  "Elide namespace of core symbols"
+  [sym]
+  (some-> (as-symbol sym)
+          (cond-> (= (namespace sym) "firelisp.core") (name))
+          (symbol)))
+
 (defn munge-sym [sym]
-  (when-let [sym (as-symbol sym)]
+  (when-let [sym (dequote-symbols sym)]
     (-> sym
         (str)
         (string/replace "/" "__")

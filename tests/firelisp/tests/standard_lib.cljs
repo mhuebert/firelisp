@@ -144,7 +144,7 @@
                               (+ x y)))
              "(11 + (11 + 12))")
           "multiple let bindings expand to nested lets"))
-    #_(testing "f/let"
+    (testing "f/let"
 
       (is (= (f/let [a-str "hello"
                      a-fn (fn [n] (+ n 1))

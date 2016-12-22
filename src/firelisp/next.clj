@@ -32,7 +32,12 @@
   (let [i (atom {})
         body (->> body
                   (walk/postwalk (fn [x]
-                                   (if (and (seq? x) (#{'firelisp.core/fn 'fn} (first x)))
+                                   (if (and (seq? x)
+                                            (#{'fn
+                                               'fn*
+                                               'defn
+                                               'macro
+                                               'defmacro} (some-> (first x) paths/elide-core)))
                                      (let [name (gensym)]
                                        (swap! i assoc (t (quote ~name)) x)
                                        name)
@@ -46,6 +51,6 @@
   (t (-> ~(-> body
               (paths/refer-special-forms)
               (unquote-fns))
-         (firelisp.next/expand-simple)
+         #_(firelisp.next/expand-simple)
          (firelisp.next/resolve-form))))
 

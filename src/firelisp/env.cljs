@@ -1,6 +1,6 @@
 (ns firelisp.env
   (:require [clojure.string :as string]
-            ))
+            [firelisp.paths :as paths]))
 
 
 (def ^:dynamic *rules* nil)
@@ -10,23 +10,8 @@
 (defonce ^:dynamic *defs* (atom {}))
 (defonce terminal-defs (atom {}))
 
-
-(defn as-symbol
-  "Unquote symbols"
-  [n]
-  (if (seq? n) (second n) n))
-
-(defn munge-sym [sym]
-  (when-let [sym (as-symbol sym)]
-    (-> sym
-        (str)
-        (string/replace "/" "__")
-        symbol)))
-
 (defn resolve-sym [sym]
-  (when-let [sym (and (symbol? sym)
-                      (cond-> sym
-                              (= (namespace sym) "firelisp.core") (name)))]
+  (when-let [sym (some-> sym paths/elide-core)]
     (or
-      (get-in @*defs* [(munge-sym sym) :value])
-      (get-in *context* [:bindings (munge-sym sym)]))))
+      (get-in @*defs* [(paths/munge-sym sym) :value])
+      (get-in *context* [:bindings (paths/munge-sym sym)]))))

@@ -1,12 +1,12 @@
 (ns firelisp.tests.next
   (:require [devcards.core :refer-macros [deftest]]
             [firelisp.core :as f :include-macros true]
-            [firelisp.template :refer [t] :include-macros true]
+            [firelisp.template :refer [t •t] :include-macros true]
             [firelisp.compile :as compile]
-            [firelisp.next :as n :refer [path authorize validate expand expand-simple unquote-fns]]
+            [firelisp.next :as n :refer [path authorize validate expand expand-1 unquote-fns]]
             [clojure.spec :as s :include-macros true]
             [firelisp.specs :as specs]
-            )
+            [clojure.walk :as walk])
   (:require-macros
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
@@ -18,33 +18,66 @@
 (deftest firelisp-next
 
   (testing "macro expansion"
+
+    (is (= (expand '(let [x 1]
+                      {"name" x}))
+           {"name" 1})
+        "may contain a map")
+
     (is (= (expand '(-> y
                         (= 10)
                         true?))
-           '(= true (= y 10)))))
+           '(= true (= y 10)))
+        "expand macros top-down"))
 
   (testing "anonymous functions"
-    (comment
-      (is (= (expand (let [f (fn [x] (+ x 1))]
-                       (f 10)))
-             (expand (let [f #(+ % 1)]
-                       (f 10)))
-             '(+ 10 1))
-          "Support #(...) and (fn [] ...)")
 
-      (is (= (expand (let [x 10
-                           f (fn [y] (+ y x))]
-                       (f 1)))
-             '(+ 1 10))
-          "Functions can use variables in scope"))
+    (is (= (expand (let [f (fn [x] (+ x 1))]
+                     (f 10)))
+           (expand (let [f #(+ % 1)]
+                     (f 10)))
+           '(+ 10 1))
+        "Support #(...) and (fn [] ...)")
 
-    (is (= (expand (let [x 1
-                         f (fn [a] (+ a x))
-                         g (fn [b] (f b))
-                         h (fn [n] (- (g n)))]
-                     [(g x) (f x) (h x)]))
+    (is (= (expand (let [x 10
+                         f (fn [y] (+ y x))]
+                     (f 1)))
+           '(+ 1 10))
+        "Functions can use variables in scope")
+
+    (is (= (f/let [x 1
+                   f (fn [a] (+ a x))]
+             (expand (let [g (fn [b] (f b))
+                           h (fn [n] (- (g n)))]
+                       [(g x) (f x) (h x)])))
            '[(+ 1 1) (+ 1 1) (- (+ 1 1))])
-        "Functions can call each other"))
+        "Functions can call each other")
+
+    (is (= (f/let [macro-a (macro [n a-str] (into [] (take n (repeat a-str))))]
+             (expand '(let [macro-b (macro [n a-str] (into [] (take n (repeat a-str))))]
+                        [(macro-a 1 "a")
+                         (macro-b 2 "b")
+                         ])))
+           '[["a"] ["b" "b"]])
+        "Anonymouse macros")
+
+    (is (= (expand '(let [x 1
+                          f (fn close-context [a] (+ a x))
+                          x 2]
+                      (f "a")))
+           '(+ "a" 1))
+        "Anonymous function closes over its context")
+
+    (is (= (let [x 1]
+             (t (• x)))
+           1)
+        "Special template-unquote")
+
+    (is (= (let [x 5]
+             (•t '#{-} (+ 1 2 3 4 (- 10 x))))
+           '(+ 1 2 3 4 5)))
+
+    )
 
 
   (testing "expand"
