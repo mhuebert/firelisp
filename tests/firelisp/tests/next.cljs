@@ -3,7 +3,7 @@
             [firelisp.core :as f :include-macros true]
             [firelisp.template :refer [t •t] :include-macros true]
             [firelisp.compile :as compile]
-            [firelisp.next :as n :refer [path authorize validate expand expand-1 unquote-fns]]
+            [firelisp.next :as n :refer [path authorize validate expand expand-1]]
             [clojure.spec :as s :include-macros true]
             [firelisp.specs :as specs]
             [clojure.walk :as walk])

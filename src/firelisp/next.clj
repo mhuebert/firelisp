@@ -1,5 +1,5 @@
 (ns firelisp.next
-  (:require [firelisp.template :refer [t] :include-macros true]
+  (:require [firelisp.template :refer [t •t] :include-macros true]
             [firelisp.paths :as paths]
             [clojure.walk :as walk]))
 
@@ -26,31 +26,11 @@
   (if (and (seq? form) (#{'quote 'firelisp.template/t} (first form)))
     form (t (firelisp.template/t ~form))))
 
-(defn unquote-fns
-  "Return quoted body with function statements unquoted"
-  [body]
-  (let [i (atom {})
-        body (->> body
-                  (walk/postwalk (fn [x]
-                                   (if (and (seq? x)
-                                            (#{'fn
-                                               'fn*
-                                               'defn
-                                               'macro
-                                               'defmacro} (some-> (first x) paths/elide-core)))
-                                     (let [name (gensym)]
-                                       (swap! i assoc (t (quote ~name)) x)
-                                       name)
-                                     x))))]
-    (t (->> ~(ensure-quote body)
-            (clojure.walk/postwalk-replace ~(deref i))))))
-
 (defmacro expand
   "Expand Firelisp code"
   [body]
   (t (-> ~(-> body
               (paths/refer-special-forms)
-              (unquote-fns))
-         #_(firelisp.next/expand-simple)
+              ensure-quote)
          (firelisp.next/resolve-form))))
 
