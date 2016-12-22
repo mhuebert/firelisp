@@ -46,9 +46,11 @@
   (if (seq? n) (second n) n))
 
 (defn munge-sym [sym]
-  (-> (str (as-symbol sym))
-      (string/replace "/" "__")
-      symbol))
+  (when-let [sym (as-symbol sym)]
+    (-> sym
+        (str)
+        (string/replace "/" "__")
+        symbol)))
 
 (defn clean-quotes [s]
   (if (and (list? s) (= 'firelisp.template/t (first s)))
@@ -71,8 +73,7 @@
                        fn (cons 'firelisp.core/fn (rest x))
                        fn* (cons 'firelisp.core/fn (rest x))
                        macro (cons 'firelisp.core/macro (rest x))
-                       let (cons 'firelisp.core/let (rest x)) #_(list 'firelisp.core/let (fnext x) (nth x 2) #_(vec (mapcat (partition 2 (fn [sym val]
-                                                                                [sym (cons 'unquote (list val))]) (fnext x)))) (nnext x))
+                       let (cons 'firelisp.core/let (rest x))
                        x)
                      x))
                  body))

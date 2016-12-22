@@ -45,3 +45,14 @@
       (if p
         (recur p)
         loc))))
+
+(defn child-locs [loc]
+  (take-while identity (iterate z/right (z/down loc))))
+
+(defn coll-zip
+  "Returns a zipper for nested sequences, given a root sequence"
+  [root]
+  (z/zipper coll?
+            identity
+            (fn [node children] (into (empty node) children))
+            root))

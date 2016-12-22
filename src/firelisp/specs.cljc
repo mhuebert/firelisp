@@ -24,8 +24,9 @@
   ([body] (parse-fn-args identity body))
   ([update-f body]
    (let [conf (-> (s/conform :cljs.core/defn-args body)
-                  (update-conf update-f)
-                  (update :name munge-sym))
+                  (update-conf update-f))
+         conf (cond-> conf
+                      (contains? conf :name) (update :name munge-sym))
          new-args (s/unform :cljs.core/fn-args conf)]
      (assoc (conf-meta conf) :value (t ~(cons 'cljs.core/fn new-args))))))
 
@@ -66,7 +67,7 @@
                                     :attr (s/? map?)))))
 
 (s/def :cljs.core/fn-args
-  (s/cat :name symbol?
+  (s/cat :name (s/? symbol?)
          :bs (s/alt :arity-1 ::args+body
                     :arity-n (s/cat :bodies (s/+ (s/spec
                                                    ::args+body))

@@ -3,14 +3,9 @@
 (ns firelisp.compile
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
-            [firelisp.env :refer [*defs* *context* terminal-defs]])
+            [firelisp.env :refer [*defs* *context* terminal-defs resolve-sym]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
-(def munge-sym #(-> (cond-> %
-                            (= (namespace %) "firelisp.core") (name))
-                    (str)
-                    (string/replace "/" "__")
-                    (symbol)))
 (defn wrap [s]
   (str "(" s ")"))
 
@@ -313,10 +308,7 @@
    (walk/postwalk
      (fn [expr]
        (cond (symbol? expr)
-             (or
-               (get-in defs [(munge-sym expr) :value])
-               (get-in *context* [:bindings (munge-sym expr)])
-               expr)
+             (or (resolve-sym expr) expr)
 
              (and (seq? expr) (fn? (first expr)))
              (apply (first expr) (rest expr))

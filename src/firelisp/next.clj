@@ -23,34 +23,29 @@
      (merge ~@(paths/refer-special-forms body))))
 
 (defn ensure-quote [form]
-  (if (and (seq? form) (= 'quote (first form)))
-    form (t '~form)))
+  (if (and (seq? form) (#{'quote 'firelisp.template/t} (first form)))
+    form (t (firelisp.template/t ~form))))
 
-(defn with-defs
+(defn unquote-fns
   "Return quoted body with function statements unquoted"
   [body]
-  (let [defs (atom [])
+  (let [i (atom {})
         body (->> body
-                  (paths/refer-special-forms)
                   (walk/postwalk (fn [x]
-                                   (if (and (seq? x) (= 'firelisp.core/fn (first x)))
+                                   (if (and (seq? x) (#{'firelisp.core/fn 'fn} (first x)))
                                      (let [name (gensym)]
-                                       (swap! defs conj (t (firelisp.core/def (quote ~name) ~x)))
+                                       (swap! i assoc (t (quote ~name)) x)
                                        name)
                                      x))))]
-    [@defs body]))
+    (t (->> ~(ensure-quote body)
+            (clojure.walk/postwalk-replace ~(deref i))))))
 
 (defmacro expand
   "Expand Firelisp code"
   [body]
-  (let [[defs body] (-> body
-                        (paths/refer-special-forms)
-                        (with-defs))]
-    (t (do
-         (println (quote (do
-                           ~@defs
-                           (firelisp.compile/expand ~(ensure-quote body)))))
-         ~@defs
-         (firelisp.compile/expand ~(ensure-quote body)))))
-  )
+  (t (-> ~(-> body
+              (paths/refer-special-forms)
+              (unquote-fns))
+         (firelisp.next/expand-simple)
+         (firelisp.next/resolve-form))))
 

@@ -68,7 +68,7 @@
          (when siblings (str "\n\n" parent " contains: " siblings))
          "\n\n")))
 
-(js/setTimeout
+#_(js/setTimeout
   #(doseq [s '[+
                child
                :create

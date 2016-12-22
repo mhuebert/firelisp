@@ -179,7 +179,9 @@
           (recur '(let [~@(first bindings)] ~result)
                  (rest bindings))))))
 
-(f/defmacro let
+
+
+#_(f/defmacro let
   "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
   [bindings body]
   (loop [[bindings body] [(partition 2 bindings) body]]
@@ -188,7 +190,7 @@
       (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
                                             [(rest bindings) body])))))
 
-#_(f/defmacro fn
+ #_(f/defmacro fn
   [& body]
   (println :fn (specs/parse-fn-args specs/fn-wrap body))
   '(let [])

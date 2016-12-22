@@ -35,7 +35,6 @@
   ((fn print-ops [loc]
      (if (z/branch? loc)
        (let [children (child-locs loc)]
-         (when (seq? (z/node loc)) (println :op (z/node (first children))))
          (doseq [a children] (print-ops a))))) loc))
 
 (deftest next-part
@@ -145,7 +144,7 @@
                               (+ x y)))
              "(11 + (11 + 12))")
           "multiple let bindings expand to nested lets"))
-    (testing "f/let"
+    #_(testing "f/let"
 
       (is (= (f/let [a-str "hello"
                      a-fn (fn [n] (+ n 1))

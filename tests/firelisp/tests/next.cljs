@@ -3,21 +3,40 @@
             [firelisp.core :as f :include-macros true]
             [firelisp.template :refer [t] :include-macros true]
             [firelisp.compile :as compile]
-            [firelisp.next :as n :refer-macros [path authorize validate expand def-anonymous-fns]]
-
+            [firelisp.next :as n :refer [path authorize validate expand expand-simple unquote-fns]]
+            [clojure.spec :as s :include-macros true]
+            [firelisp.specs :as specs]
             )
   (:require-macros
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
+(println (expand (let [f (fn [x] (+ x 1))]
+                   (f 10))))
 
 
 (deftest firelisp-next
 
-  (testing ""
+  (testing "macro expansion order"
+    (is (= (expand '(-> y
+                        (= 10)
+                        true?))
+           '(= true (= y 10)))))
+
+  (testing "anonymous functions"
     (is (= (expand (let [f (fn [x] (+ x 1))]
-                         (f 10)))
-           '(+ 10 1))))
+                     (f 10)))
+           (expand (let [f #(+ % 1)]
+                     (f 10)))
+           '(+ 10 1)))
+
+    (is (= (expand (let [x 10
+                         f (fn [y] (+ y x))]
+                     (f 1)))
+           '(+ 1 10)))
+
+    )
+
 
   (testing "expand"
     (is (= (expand (let [x 1] x))
