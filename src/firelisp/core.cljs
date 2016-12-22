@@ -6,9 +6,9 @@
     [firelisp.standard-lib]
     [firelisp.compile :refer [compile-expr]]
     [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
-    [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
+    [firelisp.paths :refer [parse-path throw-duplicate-path-variables context-with-path]])
   (:require-macros
-    [firelisp.core :refer [at]]))
+    [firelisp.core :refer [path]]))
 
 (defn add
   [path & rules]
@@ -30,7 +30,7 @@
 
 (defn pfx [prefix m]
   (reduce-kv (fn [m k v]
-                  (cond-> m
+                 (cond-> m
                          (cljs.core/string? v) (assoc k (str prefix "." v))))
              m m))
 
@@ -47,8 +47,8 @@
 
 (defn filter-by-value [pred m]
   (reduce-kv (fn [m k v] (cond-> m
-                                  (pred v) (assoc k v)
-                                  (map? v) (assoc k (filter-by-value pred v)))) {} m))
+                                 (pred v) (assoc k v)
+                                 (map? v) (assoc k (filter-by-value pred v)))) {} m))
 
 (letfn [(merge-in* [a b]
           (cond (map? a)
@@ -82,11 +82,6 @@
 
 (defn log [x] (prn x) x)
 
-(defn path-context [path]
-  (reduce (fn [m k]
-               (cond-> m
-                      (symbol? k) (assoc k (symbol (str "$" k))))) {} path))
-
 (defn compile
   ([rules] (compile rules [] 0))
   ([{:keys [create read update delete index write validate children] :as rules} path depth]
@@ -94,9 +89,7 @@
      (let [validate (cond-> validate
                             (seq children) (disj '(object? next-data)))]
        (merge
-         (binding [*context* (-> *context*
-                                 (assoc :path path)
-                                 (clojure.core/update :bindings merge (path-context path)))]
+         (binding [*context* (context-with-path *context* path)]
            (cond-> {}
                    (seq read) (assoc ".read" (compile-expr {:mode :read}
                                                            '(and ~@read)))
@@ -120,7 +113,7 @@
                                                                     (seq children)
                                                                     (append '(contains-keys? next-data [~@children])))))))
          (reduce-kv (fn [m k v]
-                         (assoc m (munge (cond->> k
+                        (assoc m (munge (cond->> k
                                                  (symbol? k) (str "$")))
                                  (compile v (conj path k) (inc depth))))
                     {}
@@ -143,8 +136,8 @@
    (when child-rules
      (doseq [[child-name rule] (seq child-rules)]
        (cond (map? rule)
-             (at (munge (name child-name))
-                 {:validate rule})
+             (path (munge (name child-name))
+                   {:validate rule})
              (not (nil? rule))
              (add child-name :validate (wrap-rule rule))
              :else nil)
@@ -156,3 +149,241 @@
        (add 'other :validate false))
 
      (add :validate '(object? next-data)))))
+
+
+
+
+
+
+'[
+
+  (path ["users" uid]
+        (let []
+          {:write    ()
+           :validate ()})
+        ;; returning a map
+
+
+
+
+        ;; example: ownership. a function returns a rule which is used in or as an expression.
+
+        (f/defn owned?
+                "Ensure data at this path is owned by an agent at owner-path."
+                [owner-path]
+                (rules [prev-data data]
+                       (let [path [owner-path (get data "owner") (get data "id")]]
+                         (and
+                           (true? (root data path))
+                           (true? (root prev-data path))))))
+
+        (path ["users" user-id])
+        (path ["cells" cell-id]
+              (validate (owned? "users")))
+
+        ;; destructuring of data arguments.
+        ;;     implementation - either with spec, or a record type with `get` implemented.. the record
+        ;;     knows its path, and adds it to the quoted symbol returned.
+        (path ["docs" doc-id]
+              (validate [prev-data {:keys [version-ts] :as doc}]
+                        ;; version expands to (get next-data "version")
+                        (and (= now version-ts)
+                             (owned? "users"))))
+
+
+        ;; example: timestamps
+        ;;  here we have some rules that we want to re-use by merging them into other rules.
+        ;;  we may need to have a special `rules` type which has its own `merge` implementation.
+        (f/def timestamps
+          (rules [prev {:keys [created-at] :as next}]
+                 {:validate {:modified-at (= next now)}
+                  :create   (= created-at now)
+                  :update   (= (get prev "created-at") created-at)}))
+
+        (defn use
+          "merges a rule-map into the current path"
+          [rule-map])
+
+        (defmacro rules
+
+          [bindings body])
+
+        (defmacro authorize [bindings body]
+          (use (rules ~bindings ~body)))
+
+        (defmacro validate [bindings body]
+          (use (rules ~bindings
+                      {:validate ~body})))
+
+        (defn owned?-2 [owner-path owner-key]
+          (rules [prev-data data]
+                 {:validate {:owner (exists? (root data [owner-path owner-key]))}}))
+
+
+        (path [x]
+
+              (use timestamps)
+              (use (owned?-2 "users" "owner"))
+
+              (authorize [prev-data data]
+                         {:write  ()
+                          :read   ()
+                          :create ()})
+
+              (validate {:title ()})
+
+              ;; anonymous rules?
+              (rule [prev-data data] (string? data))        ;; not sure what the point is
+
+
+
+              (validate [prev-data data]
+                        ;; `authorize` and `validate` also introduce scope, binding new symbols to 'next-data and 'prev-data
+                        {:title ""})
+
+              ;; pass multiple things to validate?
+              (validate timestamps
+                        ([prev-data data]
+                          {:title (string? data)}))
+
+              ;; design goal: inside `authorize` and `validate`, a map must be returned, but it could be:
+              ;; note, problem if we put next-data and prev-data into arglists. then how do we share rules?
+              (defkeys [prev next]
+                       :timestamp/created-at (= next now)
+                       :timestamp/modified-at (= next now))
+
+              (keys {:req [:timestamp/created-at
+                           :timestamp/modified-at]})
+
+              (let [timestamps (rules [prev next]
+                                      {:created-at  (= next now)
+                                       :modified-at (= next now)})]
+                (validate [prev-data data]
+                          (merge {:title string?}
+                                 timestamps)))
+
+              ;; in some kind of expansion phase, we should be able to refer clojure functions en masse.
+              ;; merge, assoc, disj, dissoc..
+
+              (keys {:opt []
+                     :req []})
+
+              (index ["users"])
+
+              ;;; OK...
+              ;; - you can only use `rule` symbols inside a (rules [] ...) call.
+              ;; - `authorize` and `validate` wrap a `rules` call.
+              ;; still doesn't help figure out re-use (merge, assoc, etc.)
+              ;; so far, `let` and `def` only help bind symbols to use *inside* a particular
+              ;; rule, but do not help you compose rules / keys-with-rules.
+
+              )
+
+        ;; a `root` function operates on a data-snapshot
+        (get-in (root data) [])
+        ;; vs
+        (get-in root [])
+        (get-in prev-root [])
+        ;; `root` could also use get-in
+        (root data ["users"])
+        (root prev-data ["users"])
+
+
+        (path [x]
+              {:authorize {:write  ()
+                           :read   ()
+                           :create ()}
+
+               :validate  {:title ""}
+
+               :keys      {:opt []
+                           :req []}
+
+               :index     ["users"]}
+
+              )
+
+
+        ;; map style
+        (path [x]
+              {:read    (root prev)
+               :update? (root old)
+               :valid?  true
+               :write?  (= prev 10)
+               :create? (= data 99)
+               :delete? (= data 10)})
+
+
+        ;; function style, no args:
+        (path [x]
+
+              (read (root prev))
+              (update? (root old))
+              (valid? true)
+              (write? (= prev 10))
+              (create? (= data 99))
+              (delete? (= data 10))
+
+              )
+
+        (path [x]
+
+              (write [old new])
+              (read [data]
+                    (root prev))
+              (update? [old new]
+                       (root old))
+              (valid? [old new] true)
+
+              (write?
+                "Should not be able to write"
+                [old new]
+                (= prev 10))
+
+              (create? [data]
+                       (= data 99))
+              (delete? [data]
+                       (= data 10)))
+
+        )
+
+  ;; function style, take path as argument, works for threading
+
+  (write? ["users"] [old new] (= old 10))
+
+  (-> ["users"]
+      (write? [old new] (= old 10))
+
+      )
+
+  (-> ["users"]
+      (authorize {:write (= old 10)})
+      (validate true))
+
+
+  ;; recommended style: first build your own little library...
+
+  (f/def admin-id "12345")
+  (f/defn admin? [data] ...)
+
+  ;; then use them in rules
+
+  (path ["users" uid]
+        )
+
+  ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

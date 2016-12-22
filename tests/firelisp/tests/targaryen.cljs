@@ -3,7 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :include-macros true]
     [firelisp.paths :refer [parse-path]]
-    [firelisp.core :refer [compile add] :refer-macros [at]])
+    [firelisp.core :refer [compile add] :refer-macros [path]])
   (:require-macros
     [cljs.test :refer [is testing]]
     [firelisp.tests.util :refer [throws isn't]]
@@ -17,7 +17,7 @@
 
       ;; set :write rule to true
       (reset! d (-> db/blank
-                    (db/rules (at [] {:read   true
+                    (db/rules (path [] {:read  true
                                        :write  true
                                        :create (= auth.uid "x")}))))
 
@@ -40,7 +40,7 @@
               "y can't create"))
 
     (let [d (atom (-> db/blank
-                      (db/rules (at [] {:read true :write true}))
+                      (db/rules (path [] {:read true :write true}))
                       (db/set! "/" {})))]
 
       (is (nil? (db/read @d "/"))
@@ -60,8 +60,8 @@
       )
 
     (let [d (atom (-> db/blank
-                      (db/rules (at []
-                                    {:read  true #_'(exists? data)
+                      (db/rules (path []
+                                      {:read  true #_'(exists? data)
                                      :write true}))
                       (db/set! "/" {})
                       (db/set! "/" {"x" 1})))]

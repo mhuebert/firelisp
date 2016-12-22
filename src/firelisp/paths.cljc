@@ -1,5 +1,6 @@
 (ns firelisp.paths
   (:require [clojure.string :as string]
+            [firelisp.template :refer [t] :include-macros true]
             [clojure.walk :as walk]))
 
 (defn split-path [s]
@@ -17,6 +18,11 @@
     (when-not (apply = (map count [symbols (distinct symbols)]))
       (throw (str "Duplicate use of path variables " (apply str (interpose ", " symbols))))))
   segments)
+
+(defn quote-symbol [s]
+  (if (symbol? s)
+    (t '~s)
+    s))
 
 (defn parse-path [segments]
 
@@ -43,3 +49,39 @@
   (-> (str (as-symbol sym))
       (string/replace "/" "__")
       symbol))
+
+(defn clean-quotes [s]
+  (if (and (list? s) (= 'firelisp.template/t (first s)))
+    (second s) s))
+
+(defn convert-quotes [form]
+  (walk/postwalk (fn [x]
+                   (if (and (seq? x)
+                            (= (first x) 'quote)
+                            (not (and (symbol? (second x))
+                                      (= 2 (count x)))))
+                     (cons 'firelisp.template/t (rest x))
+                     x)) form))
+
+(defn refer-special-forms [body]
+  (walk/postwalk (fn [x]
+                   (if (seq? x)
+                     (case (first x)
+                       quote (cons 'firelisp.template/t (rest x))
+                       fn (cons 'firelisp.core/fn (rest x))
+                       fn* (cons 'firelisp.core/fn (rest x))
+                       macro (cons 'firelisp.core/macro (rest x))
+                       let (cons 'firelisp.core/let (rest x)) #_(list 'firelisp.core/let (fnext x) (nth x 2) #_(vec (mapcat (partition 2 (fn [sym val]
+                                                                                [sym (cons 'unquote (list val))]) (fnext x)))) (nnext x))
+                       x)
+                     x))
+                 body))
+
+(defn context-with-path
+  [ctx path]
+  (let [segments (parse-path path)]
+    (-> ctx
+        (update :path into segments)
+        (update :bindings merge (reduce (fn [m k]
+                                          (cond-> m
+                                                  (symbol? k) (assoc k (symbol (str "$" k))))) {} path)))))

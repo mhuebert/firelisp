@@ -3,7 +3,7 @@
     [devcards.core :refer-macros [deftest]]
     [firelisp.db :as db :include-macros true]
     [firelisp.compile :refer [compile-expr expand]]
-    [firelisp.core :refer [compile] :refer-macros [at] :include-macros true])
+    [firelisp.core :refer [compile] :refer-macros [path] :include-macros true])
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
@@ -72,12 +72,12 @@
       '(contains-keys? next-data ["p" "q"]) "newData.hasChildren(['p', 'q'])"
       '(child next-data (string? (child prev-root "x"))) "newData.child(root.child('x').isString()).val()")
 
-    (at "x" (is (= (compile-expr 'next-root) "newData.parent().val()"))))
+    (path "x" (is (= (compile-expr 'next-root) "newData.parent().val()"))))
 
   (testing "Parent/Child Navigation (path '/$sweet' ...)"
 
-    (at 'sweet-thing
-        (are [form out]
+    (path 'sweet-thing
+          (are [form out]
           (= (compile-expr form) out)
 
           '(= (child (parent next-data) "name") "frank")
@@ -117,21 +117,21 @@
 
   (testing "Root"
 
-    (is (= (-> (at "/x"
-                   (at "/q"
-                       {:validate (= true (get next-root "q"))}))
+    (is (= (-> (path "/x"
+                     (path "/q"
+                           {:validate (= true (get next-root "q"))}))
                compile
                (get-in ["x" "q" ".validate"]))
            "(true === newData.parent().parent().child('q').val())"))
 
-    (at "x/$y/timestamp"
+    (path "x/$y/timestamp"
 
-        (is (= (expand '(= next-data (get next-root "p")))
+          (is (= (expand '(= next-data (get next-root "p")))
                '(= next-data (child next-root "p")))))
 
     (is (= (-> db/blank
-               (db/rules (at ["x" y]
-                             {:validate {:timestamp (= next-data (get next-root "p"))}}))
+               (db/rules (path ["x" y]
+                               {:validate {:timestamp (= next-data (get next-root "p"))}}))
                :compiled-rules
                (get-in ["x" "$y" "timestamp" ".validate"]))
            "(newData.val() === newData.parent().parent().parent().child('p').val())")))
@@ -142,8 +142,8 @@
            "newData.child('x' + '/' + 'y' + '/' + auth.uid).val()")))
 
   (testing "Rule expansion (path '/x' ...) "
-    (at "x"
-        (are [form expanded]
+    (path "x"
+          (are [form expanded]
           (= (expand form) expanded)
           '(and x y (and z (and p q r (or 1 2 (or 3 4)))))
           '(and x y z p q r (or 1 2 3 4))

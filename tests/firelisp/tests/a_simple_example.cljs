@@ -1,7 +1,7 @@
 (ns firelisp.tests.a-simple-example
   (:require [devcards.core :as dc :refer-macros [deftest defcard]]
             [sablono.core :refer-macros [html]]
-            [firelisp.core :refer [compile at] :include-macros true]
+            [firelisp.core :refer [compile path] :include-macros true]
             [firelisp.compile :refer [expand compile-expr]]
             [cljs.tools.reader :as r])
   (:require-macros
@@ -70,14 +70,14 @@
 
     "We define rules using the `rules/at` macro:"
 
-    (code "(at [] {:read true})")
+    (code "(path [] {:read true})")
 
 
 
 
-    (let [example "(at []
+    (let [example "(path []
       {:read true}
-      (at [\"users\" userid]
+      (path [\"users\" userid]
         {:write (= auth.uid userid)}))"]
       (mixed
 
@@ -88,10 +88,10 @@
         (md "The function `rules/compile` will return a Firebase-compatible map:")
 
         (code
-          (str (compile (at []
-                            {:read true}
-                            (at ["users" userid]
-                                {:write (= auth.uid $userid)}))))
+          (str (compile (path []
+                              {:read true}
+                              (path ["users" userid]
+                                    {:write (= auth.uid $userid)}))))
           "javascript")
 
         )
@@ -105,7 +105,7 @@
     "Firebase supports three kinds of rules: **.read**, **.write**, and **.validate**.
 
   ```
-    (at [\"posts\" userid]
+    (path [\"posts\" userid]
       {:read     true
        :write    (= auth.uid userid)
        :validate {:title (and
@@ -119,9 +119,9 @@
   If a `write` rule succeeds at any level of the path hierarchy, none of the `write` rules below it are evaluated:
 
    ```
-   (at []
+   (path []
      {:write true}
-     (at [\"/title\"]
+     (path [\"/title\"]
        {:write (not= nil auth.uid)})) ;; this is ignored!
 
    ```
@@ -129,9 +129,9 @@
  ...but validation rules are always enforced for non-null values, so that we can separate the concerns of *who* is allowed to write to a path from *what* they are allowed to put there.
 
   ```
-  (at []
+  (path []
     {:write true}
-    (at [\"/title\"]
+    (path [\"/title\"]
       {:validate (string? next-data)})) ;; this will always be enforced, unless next-data is `nil`.
  ```
 
@@ -147,7 +147,7 @@
   The following rules would allow users to create and delete tweets, but never edit them:
 
   ```
-  (at [\"tweets\" userid]
+  (path [\"tweets\" userid]
     {:write  (= auth.uid userid) ;; this is enforced for all writes
      :update false})               ;; updates will always fail
 
@@ -172,11 +172,11 @@
       (form-example-compile
         "next-data")
 
-      (let [expr "(at [\"users\" userid]
+      (let [expr "(path [\"users\" userid]
   next-root)"
             result (atom)]
-        (at ["users" userid]
-            (reset! result (compile-expr 'next-root)))
+        (path ["users" userid]
+              (reset! result (compile-expr 'next-root)))
         [:tr
          [:td.td-compare-0 (code "next-root")]
          [:td (code expr)]
@@ -317,9 +317,9 @@
     (code "(let [d (-> db/blank
             (db/defn signed-in? [] (not= auth nil))
             (db/rules
-              (at [\"cells\"]
+              (path [\"cells\"]
                   {:read (signed-in?)}
-                  (at [uid]
+                  (path [uid]
                       {:write (= auth.uid uid)})))
             (db/auth! {:uid \"matt\"}))
       doc {:title \"my-doc\"}]

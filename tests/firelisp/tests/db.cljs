@@ -2,7 +2,7 @@
   (:require
     [devcards.core :refer-macros [deftest defcard]]
     [firelisp.db :as db :include-macros true]
-    [firelisp.core :refer-macros [at]])
+    [firelisp.core :refer-macros [path]])
   (:require-macros
     [cljs.test :refer [is testing]]))
 
@@ -11,9 +11,9 @@
     (let [db (-> db/blank
                  (db/macro signed-in? [] '(not= auth nil))
                  (db/rules
-                   (at ["cells"]
-                       (at [uid]
-                           {:validate (signed-in?)}))))]
+                   (path ["cells"]
+                         (path [uid]
+                               {:validate (signed-in?)}))))]
 
       (is (= (-> db
                  (db/rules
@@ -27,13 +27,13 @@
       (is (thrown? js/Error
                    (-> db/blank
                        (db/rules
-                         (at "/x" {:read false}))
+                         (path "/x" {:read false}))
                        (db/read "x"))))
 
       (let [DB (-> db/blank
                    (db/rules
-                     (at ["users" uid]
-                         {:read     true
+                     (path ["users" uid]
+                           {:read     true
                           :write    (= uid auth.uid)
                           :validate {:name string?}}))
                    (db/auth! {:uid "matt"}))]
@@ -46,14 +46,14 @@
 
         (is (false? (db/read? DB "/"))))
 
-      (is (= (at "/x"
-                 {:read (= auth.uid "herman")})
-             (at "/x"
-                 {:read (= auth.uid "herman")})))
+      (is (= (path "/x"
+                   {:read (= auth.uid "herman")})
+             (path "/x"
+                   {:read (= auth.uid "herman")})))
 
       (is (-> db/blank
               (db/rules
-                (at ["x"] {:read (= auth.uid "herman")}))
+                (path ["x"] {:read (= auth.uid "herman")}))
               (db/auth! {:uid "herman"})
               (db/read "x")
               nil?))

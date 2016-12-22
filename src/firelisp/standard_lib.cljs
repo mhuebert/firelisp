@@ -4,10 +4,12 @@
   (:refer-clojure :exclude [when nil? get get-in])
   (:require [cljs.core :as core]
             [firelisp.common :refer [append] :refer-macros [with-template-quotes]]
+            [firelisp.template :refer [t] :include-macros true]
+            [firelisp.specs :as specs]
             [clojure.walk]
             [clojure.set :refer [subset?]]
-            [firelisp.env :refer [*defs*]]
-            [firelisp.paths :refer [parse-path throw-duplicate-path-variables]])
+            [firelisp.env :refer [*defs* *rules* *context*]]
+            [firelisp.paths :as paths])
   (:require-macros [firelisp.core :as f]))
 
 (defn flatten-nested [sym & [docstring]]
@@ -137,6 +139,16 @@
   []
   (= next-data prev-data))
 
+(f/defn true?
+  "Returns true if x is equal to Boolean true"
+  [x]
+  (= true x))
+
+(f/defn false?
+  "Returns false if x is equal to Boolean false"
+  [x]
+  (= false x))
+
 (f/defmacro get-in
   "Returns the value in a nested data object, not-found or nil if key not present."
   ([data-snapshot ks]
@@ -155,17 +167,77 @@
      (child data-snapshot attr)
      not-found)))
 
+#_(f/defmacro let
+    "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
+    [bindings body]
+    (if (<= (count bindings) 2)
+      (clojure.walk/postwalk-replace (apply hash-map bindings) body)
+      (loop [result body
+             bindings (reverse (partition 2 bindings))]
+        (if (empty? bindings)
+          result
+          (recur '(let [~@(first bindings)] ~result)
+                 (rest bindings))))))
+
 (f/defmacro let
   "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
   [bindings body]
-  (if (<= (count bindings) 2)
-    (clojure.walk/postwalk-replace (apply hash-map bindings) body)
-    (loop [result body
-           bindings (reverse (partition 2 bindings))]
-      (if (empty? bindings)
-        result
-        (recur '(let [~@(first bindings)] ~result)
-               (rest bindings))))))
+  (loop [[bindings body] [(partition 2 bindings) body]]
+    (if (empty? bindings)
+      body
+      (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
+                                            [(rest bindings) body])))))
+
+#_(f/defmacro fn
+  [& body]
+  (println :fn (specs/parse-fn-args specs/fn-wrap body))
+  '(let [])
+  (cons 'fn body))
+
+
+(defn add [type rule]
+  (swap! *rules* update-in (conj (:path *context*) type) (fnil (if (#{:index :children} type)
+                                                                 (partial apply conj) conj) #{}) rule))
+
+
+;; do the root expansion here?
+#_(defmacro root
+    ([data-snapshot ks]
+     '(get-in data-snapshot ks))
+    ([data-snapshot ks not-found]
+     '(get-in data-snapshot ks not-found)))
+
+(f/defmacro authorize
+  [rule-map]
+  (doseq [[rule-type rule] (seq rule-map)] (add rule-type rule)))
+
+(defn validate-wrap [rule]
+  (if (symbol? rule) (t (~rule next-data))
+                     rule))
+
+(f/defmacro validate
+  ([rule-or-map]
+   (if (map? rule-or-map) (validate nil rule-or-map)
+                          (validate rule-or-map nil)))
+  ([rule child-map]
+   (core/when rule (add :validate (validate-wrap rule)))
+   (doseq [[key rule] (seq child-map)]
+     (when-not (:optional (meta rule))
+       (add :children [key]))
+
+     (binding [*context* (paths/context-with-path *context* [(name key)])]
+       (cond (map? rule)
+             (validate rule)
+
+             (not (core/nil? rule)) (add :validate (validate-wrap rule))
+
+             :else nil)))
+
+    ;; removed
+    #_(when (empty? (filter symbol? (keys child-rules)))
+            (add 'other :validate false))
+    #_(add :validate '(object? next-data))))
+
 
 (f/defn object?
   [data-snapshot]

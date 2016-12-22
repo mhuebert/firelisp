@@ -4,7 +4,7 @@
     [firelisp.common :refer [append]]
     [firelisp.db :as db :include-macros true]
     [firelisp.compile :as c]
-    [firelisp.core :as f :refer [compile] :refer-macros [at]])
+    [firelisp.core :as f :refer [compile] :refer-macros [path]])
   (:require-macros
     [cljs.test :refer [is testing]]))
 
@@ -35,12 +35,12 @@
 
 
 
-                         (at ["users" uid "role"]
-                             {:write (or (and (nil? next-data) (= $uid auth.uid))
+                         (path ["users" uid "role"]
+                               {:write (or (and (nil? next-data) (= $uid auth.uid))
                                          (has-permission? auth.uid "manage-roles"))})
 
-                         (at ["roles" role "permissions" permission]
-                             {:validate (boolean? next-data)}))
+                         (path ["roles" role "permissions" permission]
+                               {:validate (boolean? next-data)}))
 
                        (db/set! "/" {"roles" {"admin"  {:permissions {:read         true
                                                                       :write        true
@@ -74,8 +74,8 @@
   (testing "Read-example"
 
     (let [db (-> db/blank
-                 (db/rules (at ["orders"]
-                               {:read (or (not= nil (get-in root ["technicians" auth.uid]))
+                 (db/rules (path ["orders"]
+                                 {:read (or (not= nil (get-in root ["technicians" auth.uid]))
                                           (= "server" auth.uid))})))]
 
       (is (false? (db/read? db "/orders/")))
@@ -107,26 +107,26 @@
                        (db/macro room-member? [room-id]
                                  '(and (signed-in?)
                                        (exists? (get-in prev-root ["members" ~room-id auth.uid]))))
-                       (db/rules (at []
-                                     {:read true}
+                       (db/rules (path []
+                                       {:read true}
 
-                                     (at ["room_names"]
-                                         {:validate object?}
-                                         (at "$name"
-                                             {:validate string?}))
+                                       (path ["room_names"]
+                                             {:validate object?}
+                                             (path "$name"
+                                                   {:validate string?}))
 
-                                     (at ["members" roomId]
-                                         {:read (room-member? $roomId)}
-                                         (at "$user_id"
-                                             {:validate name-string?
+                                       (path ["members" roomId]
+                                             {:read (room-member? $roomId)}
+                                             (path "$user_id"
+                                                   {:validate name-string?
                                               :write    (= auth.uid $user_id)
                                               :update   (unchanged?)}))
 
-                                     (at ["messages" roomId]
-                                         {:read     (room-member? $roomId)
+                                       (path ["messages" roomId]
+                                             {:read     (room-member? $roomId)
                                           :validate (exists? (room-name $roomId))}
-                                         (at [message-id]
-                                             {:write    (= (get-in next-root ["members" $roomId auth.uid])
+                                             (path [message-id]
+                                                   {:write    (= (get-in next-root ["members" $roomId auth.uid])
                                                            (get next-data "name"))
                                               :update   false
                                               :delete   false
@@ -150,8 +150,8 @@
     ; "From [this example by katowulf,](http://jsfiddle.net/firebase/VBmA5/) 'throttle messages to no more than one every 5,000 milliseconds'"
 
     (let [db (atom (-> db/blank
-                       (db/rules (at []
-                                     {"last_message/$user"
+                       (db/rules (path []
+                                       {"last_message/$user"
                                       {:write  (= $user auth.uid)
                                        :create (= next-data now)
                                        :update (and (= next-data now)
@@ -221,7 +221,7 @@
 
   (testing "Timestamps"
     (let [db (-> db/blank
-                 (db/rules (at [] {:write (= next-data now)})))]
+                 (db/rules (path [] {:write (= next-data now)})))]
       (is (true? (db/set? db "/" {:.sv "timestamp"})))
       (is (true? (db/set? db "/" (.now js/Date))))
       (is (false? (db/set? db "/" (dec (.now js/Date))))))
@@ -233,8 +233,8 @@
                                           now
                                           prev-data))}
           db (-> db/blank
-                 (db/rules (at ["posts" id]
-                               {:read     true
+                 (db/rules (path ["posts" id]
+                                 {:read     true
                                 :write    true
                                 :validate ~Post})))]
 

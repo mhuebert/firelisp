@@ -6,7 +6,9 @@
             [firelisp.env :refer [*defs* *context* terminal-defs]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
-(def munge-sym #(-> (str %)
+(def munge-sym #(-> (cond-> %
+                            (= (namespace %) "firelisp.core") (name))
+                    (str)
                     (string/replace "/" "__")
                     (symbol)))
 (defn wrap [s]
@@ -204,7 +206,6 @@
   [bindings body]
   (loop [pairs (partition 2 (:args bindings))
          context *context*]
-
     (if (empty? pairs)
       (binding [*context* context] (emit body))
       (recur (rest pairs)

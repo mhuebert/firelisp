@@ -6,6 +6,7 @@
             [firelisp.tests.emit]
             [firelisp.tests.standard-lib]
             [firelisp.tests.targaryen]
-            [firelisp.tests.examples]))
+            [firelisp.tests.examples]
+            [firelisp.tests.next]))
 
 (devcards/start-devcard-ui!)
