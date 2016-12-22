@@ -17,51 +17,61 @@
 
 (deftest firelisp-next
 
-  (testing "macro expansion order"
+  (testing "macro expansion"
     (is (= (expand '(-> y
                         (= 10)
                         true?))
            '(= true (= y 10)))))
 
   (testing "anonymous functions"
-    (is (= (expand (let [f (fn [x] (+ x 1))]
-                     (f 10)))
-           (expand (let [f #(+ % 1)]
-                     (f 10)))
-           '(+ 10 1)))
+    (comment
+      (is (= (expand (let [f (fn [x] (+ x 1))]
+                       (f 10)))
+             (expand (let [f #(+ % 1)]
+                       (f 10)))
+             '(+ 10 1))
+          "Support #(...) and (fn [] ...)")
 
-    (is (= (expand (let [x 10
-                         f (fn [y] (+ y x))]
-                     (f 1)))
-           '(+ 1 10)))
+      (is (= (expand (let [x 10
+                           f (fn [y] (+ y x))]
+                       (f 1)))
+             '(+ 1 10))
+          "Functions can use variables in scope"))
 
-    )
+    (is (= (expand (let [x 1
+                         f (fn [a] (+ a x))
+                         g (fn [b] (f b))
+                         h (fn [n] (- (g n)))]
+                     [(g x) (f x) (h x)]))
+           '[(+ 1 1) (+ 1 1) (- (+ 1 1))])
+        "Functions can call each other"))
 
 
   (testing "expand"
     (is (= (expand (let [x 1] x))
            1))
 
-    (is (= (expand (let [x 1 y 2] [x y]))
+    (is (= (expand (let [x 1 y 2]
+                     [x y]))
            [1 2]))
 
-    (is (= (expand (let [x 1 x 2] x))
+    (is (= (expand (let [x 1 x 2]
+                     x))
            2))
 
-    (is (= (expand (let [x 1 x 2 y (+ x 3)] y))
+    (is (= (expand (let [x 1
+                         x 2
+                         y (+ x 3)]
+                     y))
            '(+ 2 3)))
 
     (is (= (f/let [x 1] (expand x))
            1))
 
-    (is (= (expand (let [f (fn [x] (* x 10))] (f 1)))
+    (is (= (expand (let [f (fn [x] (* x 10))]
+                     (f 1)))
            '(* 1 10)))
-
     )
-
-  (testing "root"
-    (is (= (expand (root next-data ["users"]))
-           '(get-in next-data ["users"]))))
 
   #_(testing "rules"
 

@@ -71,14 +71,13 @@
 
 (defn resolve-form*
   [form]
-  (println form)
   (cond
     (or (list? form)
         (seq? form)) (let [f (some-> (first form) (resolve-sym) (as-fn))
                            new-res (and f (apply f (rest form)))]
                        (if (and f (not= form new-res))
                          (resolve-form* new-res)
-                         (apply list (map resolve-expr form))))
+                         (apply list (map resolve-form* form))))
     (record? form) (reduce (fn [r x] (conj r (resolve-form* x))) form form)
     (coll? form) (into (empty form) (map resolve-form* form))
     :else (resolve-expr form)))
