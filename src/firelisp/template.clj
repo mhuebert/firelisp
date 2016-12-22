@@ -21,8 +21,7 @@
       sym)))
 
 (defn unquote? [form]
-  (and (seq? form) (#{'clojure.core/unquote
-                      '•} (first form))))
+  (and (seq? form) (= 'clojure.core/unquote (first form))))
 
 (defn unquote-splicing? [form]
   (and (seq? form) (= (first form) 'clojure.core/unquote-splicing)))
@@ -52,7 +51,3 @@
 (defmacro t [form]
   (binding [*gensyms* (atom {})]
     (quote-fn* form)))
-
-(defmacro •t [unquote-ops form]
-  (binding [*gensyms* (atom {})]
-    (quote-fn* (walk/postwalk (fn [x] (if (and (seq? x) (contains? (second unquote-ops) (first x))) `(~'• ~x) x)) form))))

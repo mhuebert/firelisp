@@ -1,5 +1,5 @@
 (ns firelisp.next
-  (:require [firelisp.template :refer [t •t] :include-macros true]
+  (:require [firelisp.template :refer [t] :include-macros true]
             [firelisp.paths :as paths]
             [clojure.walk :as walk]))
 

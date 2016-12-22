@@ -48,8 +48,10 @@
   (specs/parse-fn-args specs/fn-wrap body))
 
 (core/defmacro fn [& body]
-  (t (do (when (= 'close-context (quote ~(first body)))
-           (println (quote ~body) (:bindings firelisp.env/*context*))) (get (firelisp.core/fn* ~body) :value))))
+  (t (let [bindings# (:bindings firelisp.env/*context*)]
+       (clojure.core/fn [& args#]
+         (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings#)]
+           (firelisp.next/resolve-form (apply (get (firelisp.core/fn* ~body) :value) args#)))))))
 
 (core/defmacro defn [& body]
   (t (let [{name# :name :as fn#} (firelisp.core/fn* ~body)]

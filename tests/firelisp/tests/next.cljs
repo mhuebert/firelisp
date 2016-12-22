@@ -1,7 +1,7 @@
 (ns firelisp.tests.next
   (:require [devcards.core :refer-macros [deftest]]
             [firelisp.core :as f :include-macros true]
-            [firelisp.template :refer [t •t] :include-macros true]
+            [firelisp.template :refer [t] :include-macros true]
             [firelisp.compile :as compile]
             [firelisp.next :as n :refer [path authorize validate expand expand-1]]
             [clojure.spec :as s :include-macros true]
@@ -68,14 +68,7 @@
            '(+ "a" 1))
         "Anonymous function closes over its context")
 
-    (is (= (let [x 1]
-             (t (• x)))
-           1)
-        "Special template-unquote")
 
-    (is (= (let [x 5]
-             (•t '#{-} (+ 1 2 3 4 (- 10 x))))
-           '(+ 1 2 3 4 5)))
 
     )
 
