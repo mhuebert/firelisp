@@ -59,6 +59,10 @@
 
     )
 
+  (testing "root"
+    (is (= (expand (root next-data ["users"]))
+           '(get-in next-data ["users"]))))
+
   #_(testing "rules"
 
       (is (= (authorize [prev next]
