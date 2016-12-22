@@ -34,3 +34,9 @@
               ensure-quote)
          (firelisp.next/resolve-form))))
 
+(defmacro let-context-macro [body]
+  (t (-> ~(-> body
+              (paths/refer-special-forms)
+              ensure-quote)
+         (firelisp.next/let-context))))
+

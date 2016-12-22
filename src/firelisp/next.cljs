@@ -69,33 +69,44 @@
 
         :else expr))
 
+(declare resolve-form*)
+
+(defn let-context
+  "Returns context as modified by a `let` form"
+  [bindings]
+  (loop [pairs (partition 2 bindings)
+         context *context*]
+    (if (empty? pairs)
+      context
+      (recur (rest pairs)
+             (binding [*context* context]
+               (update context :bindings assoc (ffirst pairs) (resolve-form* (second (first pairs)))))))))
+(defn with-let
+  "Bind symbols to values"
+  [bindings body]
+  (binding [*context* (let-context bindings)]
+    (resolve-form* body)))
+
 (defn resolve-form*
   [form]
   (cond
     (or (list? form)
-        (seq? form)) (let [f (some-> (first form) (resolve-sym) (as-fn))
-                           new-res (and f (apply f (rest form)))]
-                       (if (and f (not= form new-res))
-                         (resolve-form* new-res)
-                         (apply list (map resolve-form* form))))
+        (seq? form)) (if (= 'let (paths/elide-core (first form)))
+                       (apply with-let (rest form))
+                       (let [f (some-> (first form) (resolve-sym) (as-fn))
+                             new-res (and f (apply f (map resolve-form* (rest form))))]
+                         (if (and f (not= form new-res))
+                           (resolve-form* new-res)
+                           (apply list (map resolve-form* form)))))
     (record? form) (reduce (fn [r x] (conj r (resolve-form* x))) form form)
     (coll? form) (into (empty form) (map resolve-form* form))
     (fn? form) (form)
     :else (resolve-expr form)))
 
-(defn let-context
-  "Bind symbols to values"
-  [bindings body]
-  (loop [pairs (partition 2 bindings)
-         context *context*]
-    (if (empty? pairs)
-      (binding [*context* context] (resolve-form* body))
-      (recur (rest pairs)
-             (binding [*context* context]
-               (update context :bindings assoc (ffirst pairs) (resolve-form* (second (first pairs)))))))))
+
 
 (defn resolve-form [form]
-  (binding [*defs* (atom (assoc @*defs* 'let {:value let-context}))]
+  (do                                                       ;binding [*defs* (atom (assoc @*defs* 'let {:value with-let}))]
     (resolve-form* form)))
 
 (defn expand-1

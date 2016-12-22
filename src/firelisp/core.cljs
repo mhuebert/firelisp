@@ -3,6 +3,7 @@
     [static.targaryen]
     [firelisp.env :refer [*rules* *context*]]
     [firelisp.repl]
+    [firelisp.next :include-macros true]
     [firelisp.standard-lib]
     [firelisp.compile :refer [compile-expr]]
     [firelisp.common :refer [append] :refer-macros [with-template-quotes]]

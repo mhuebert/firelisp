@@ -45,12 +45,17 @@
            '(+ 1 10))
         "Functions can use variables in scope")
 
-    (is (= (f/let [x 1
+    (is (= (f/let [x 0
                    f (fn [a] (+ a x))]
-             (expand (let [g (fn [b] (f b))
+             (expand (let [x 1
+                           g (fn [b] (f b))
                            h (fn [n] (- (g n)))]
-                       [(g x) (f x) (h x)])))
-           '[(+ 1 1) (+ 1 1) (- (+ 1 1))])
+                       [(g x)
+                        (f x)
+                        (h x)])))
+           '[(+ 1 0)
+             (+ 1 0)
+             (- (+ 1 0))])
         "Functions can call each other")
 
     (is (= (f/let [macro-a (macro [n a-str] (into [] (take n (repeat a-str))))]
@@ -59,18 +64,26 @@
                          (macro-b 2 "b")
                          ])))
            '[["a"] ["b" "b"]])
-        "Anonymouse macros")
+        "Anonymous macros")
 
-    (is (= (expand '(let [x 1
-                          f (fn close-context [a] (+ a x))
-                          x 2]
-                      (f "a")))
-           '(+ "a" 1))
-        "Anonymous function closes over its context")
+    (testing "Anonymous function closes over its context"
 
 
+      (is (= (expand '(let [x 1
+                            f (fn [a] (+ a x))
+                            g #(+ % x)
+                            x 2]
+                        [(f "a") (g "a")]))
+             '[(+ "a" 1) (+ "a" 1)])
+          "`let` inside expand")
 
-    )
+      (is (= (f/let [x 1
+                     f (fn [a] (+ a x))]
+               (expand '(let [g #(+ % x)
+                              x 2]
+                          [(f "a") (g "a")])))
+             '[(+ "a" 1) (+ "a" 1)])
+          "`let` outside expand")))
 
 
   (testing "expand"

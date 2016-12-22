@@ -167,6 +167,9 @@
      (child data-snapshot attr)
      not-found)))
 
+(f/defmacro *context* []
+  firelisp.env/*context*)
+
 #_(f/defmacro let
     "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
     [bindings body]

@@ -9,7 +9,9 @@
     [clojure.spec :as s :include-macros true]
     [clojure.zip :as z]
     [firelisp.post-zip :as w]
-    [clojure.core :as core]))
+    [clojure.core :as core]
+    [firelisp.next :as n :include-macros true]
+    [firelisp.paths :as paths]))
 
 (defonce ^:dynamic *defs* 'firelisp.env/*defs*)
 (defonce core-fn #?(:cljs 'cljs.core/fn
@@ -36,8 +38,14 @@
 (core/defmacro macro* [body]
   (specs/parse-fn-args specs/macro-wrap body))
 
+(core/defmacro bind-anon-fn [constructor body]
+  (t (let [bindings# (:bindings firelisp.env/*context*)]
+       (clojure.core/fn [& args#]
+         (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings#)]
+           (firelisp.next/resolve-form (apply (get (~constructor ~body) :value) args#)))))))
+
 (core/defmacro macro [& body]
-  (t (get (firelisp.core/macro* ~body) :value)))
+  (t (firelisp.core/bind-anon-fn firelisp.core/macro* ~body)))
 
 (core/defmacro defmacro [& body]
   (t
@@ -48,10 +56,7 @@
   (specs/parse-fn-args specs/fn-wrap body))
 
 (core/defmacro fn [& body]
-  (t (let [bindings# (:bindings firelisp.env/*context*)]
-       (clojure.core/fn [& args#]
-         (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings#)]
-           (firelisp.next/resolve-form (apply (get (firelisp.core/fn* ~body) :value) args#)))))))
+  (t (firelisp.core/bind-anon-fn firelisp.core/fn* ~body)))
 
 (core/defmacro defn [& body]
   (t (let [{name# :name :as fn#} (firelisp.core/fn* ~body)]
@@ -154,13 +159,10 @@
                                           (seq v) (assoc k (into #{} (map firelisp.paths/clean-quotes v))))) {} @~'firelisp.env/*rules*)))))
 
 (core/defmacro let [bindings & body]
-  (clojure.core/let [bindings (walk/postwalk-replace {'fn    'firelisp.core/fn
-                                                      'fn*   'firelisp.core/fn
-                                                      'macro 'firelisp.core/macro} bindings)]
-    (t (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge ~(->> bindings
-                                                                                             (mapv #(if (symbol? %) (t (quote ~%)) %))
-                                                                                             (apply hash-map)))]
-         (clojure.core/let ~bindings ~@body)))))
+  (t (binding [firelisp.env/*context* (firelisp.next/let-context-macro ~bindings)]
+       (clojure.core/let ~(walk/postwalk-replace {'fn    'firelisp.core/fn
+                                                  'fn*   'firelisp.core/fn
+                                                  'macro 'firelisp.core/macro} bindings) ~@body))))
 
 
 
