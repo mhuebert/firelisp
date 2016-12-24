@@ -80,7 +80,7 @@
   (walk/postwalk (fn [x]
                    (if (seq? x)
                      (case (first x)
-                       quote (cons 'firelisp.template/t (rest x))
+                       ;quote (cons 'firelisp.template/t (rest x))
                        fn (cons 'firelisp.core/fn (rest x))
                        fn* (cons 'firelisp.core/fn (rest x))
                        macro (cons 'firelisp.core/macro (rest x))
@@ -94,8 +94,9 @@
   (let [segments (parse-path path)]
     (-> ctx
         (update :path into segments)
-        (update :bindings merge (reduce (fn [m k]
+        #_(update :bindings merge (reduce (fn [m k]
                                           (cond-> m
                                                   (symbol? k) (assoc k {:name  k
                                                                         :value (symbol (str "$" k))
                                                                         :type  :path-variable}))) {} path)))))
+

@@ -5,22 +5,23 @@
 
 (defmacro authorize
   "Returns a map of `authorize` rules. Binds arglist to [prev-data, next-data]."
-  [arglist rule-map]
-  (t
-    (let [bindings# '~(apply hash-map (interleave arglist ['prev-data 'next-data]))]
-      (reduce-kv (fn [m# k# v#]
-                   (update m# k# (fnil conj []) {:context {:bindings (merge (:bindings firelisp.env/*context*) bindings#)}
-                                                 :rule    v#})) {} ~(paths/refer-special-forms rule-map)))
-
-    ))
+  [args rule-map]
+  (t (firelisp.next/expand (let ~(vec (interleave args ['prev-data 'next-data]))
+                             ~rule-map))))
 
 (defmacro validate [bindings rule-map]
   `(authorize ~bindings {:validate ~rule-map}))
 
 (defmacro path [path-segments & body]
-  `(binding [~'firelisp.env/*rules* (or ~'firelisp.env/*rules* (atom {}))
-             ~'firelisp.env/*context* (paths/context-with-path ~'firelisp.env/*context* (quote ~path-segments))]
-     (merge ~@(paths/refer-special-forms body))))
+  (let [path-bindings (->> path-segments
+                           (reduce (fn [m k]
+                                     (cond-> m
+                                             (symbol? k) (assoc k (t (quote ~(symbol (str "$" k))))))) {})
+                           (apply concat)
+                           vec)]
+    `(binding [~'firelisp.env/*context* (paths/context-with-path ~'firelisp.env/*context* (quote ~path-segments))]
+       (firelisp.core/let ~path-bindings
+         (merge ~@(paths/refer-special-forms body))))))
 
 (defn ensure-quote [form]
   (if (and (seq? form) (#{'quote 'firelisp.template/t} (first form)))
@@ -28,8 +29,8 @@
 
 ;; takes forever to compile
 #_(defn unquote-locals [&env form]
-  (t (let ~(vec (apply hash-map (for [k (get &env :locals)]
-                                  [k (list 'clojure.core/unquote k)]))) ~form)))
+    (t (let ~(vec (apply hash-map (for [k (get &env :locals)]
+                                    [k (list 'clojure.core/unquote k)]))) ~form)))
 
 ;; idea: unquote anything that is not in scope
 

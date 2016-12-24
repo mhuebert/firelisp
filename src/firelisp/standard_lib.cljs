@@ -87,6 +87,9 @@
                         '(when-let ~expr (cond ~@more-clauses))
                         '(if ~test ~expr (cond ~@more-clauses))))))))))
 
+(f/defn quote [body]
+  body)
+
 (defn root? [s]
   (= \/ (first (name (if (seq? s) (first s) s)))))
 
@@ -179,43 +182,6 @@
    (if (exists? (child data-snapshot attr))
      (child data-snapshot attr)
      not-found)))
-#_(f/defmacro get
-    "Returns the child of a data object, not-found or nil if key not present."
-    ([data-snapshot attr]
-     '(child ~data-snapshot ~attr))
-    ([data-snapshot attr not-found]
-     '(if (exists? (child ~data-snapshot ~attr))
-        (child ~data-snapshot ~attr)
-        ~not-found)))
-
-#_(f/defmacro *context* []
-    firelisp.env/*context*)
-
-#_(f/defmacro let
-    "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
-    [bindings body]
-    (if (<= (count bindings) 2)
-      (clojure.walk/postwalk-replace (apply hash-map bindings) body)
-      (loop [result body
-             bindings (reverse (partition 2 bindings))]
-        (if (empty? bindings)
-          result
-          (recur '(let [~@(first bindings)] ~result)
-                 (rest bindings))))))
-
-
-
-#_(f/defmacro let
-    "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
-    [bindings body]
-    (loop [[bindings body] [(partition 2 bindings) body]]
-      (if (empty? bindings)
-        body
-        (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
-                                              [(rest bindings) body])))))
-
-
-
 (f/defmacro fn
   "Returns a FireLisp function"
   [& body]

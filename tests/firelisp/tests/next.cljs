@@ -11,13 +11,71 @@
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
-
 (deftest scratch
-
 
   )
 
 (deftest firelisp-next
+
+  (testing "rule composition"
+
+    (is (= (path [x] (expand 'x))
+           '$x)
+        "Path variable expansion")
+
+    (is (= (path [x]
+             (authorize [] {:write (= "a" x)}))
+           {:write '(= "a" $x)})
+        "`path` introduces variables into Clojure and FireLisp scope.")
+
+
+    (is (= (path [x]
+             (authorize [prev next]
+                        {:write (= next x)}))
+           '{:write (= next-data $x)})
+        "authorize bindings")
+
+    (is (thrown? js/Error
+                 (path [x]
+                   (authorize [] {:write (= "a" $x)}))))
+
+    (is (=
+
+
+          (path []
+            (path ["1"]
+              {:write ["1"]}
+              (path ["2" two]
+                {:write ["1" "2" two]})))
+
+
+          '{:write #{[]}
+            "1"    {:write #{["1"]}
+                    "2"    {two {:write #{["1" "2" $two]}}}}})
+        "Return rules in vectors from `authorize` and `validate`;
+        Deep-merge rules in paths;
+        Traverse maps - keywords indicate rules, strings and symbols indicate paths.")
+
+    )
+
+  (is (= (authorize [{prev-title :title} {next-title :title}]
+                    {:write (= prev-title next-title)})
+         '{:write (= (child prev-data "title") (child next-data "title"))})
+      "authorize destructuring")
+
+  (is (= (path []
+           (authorize [] {:write true})
+           (validate [] true))
+         {:write    true
+          :validate true})
+      "Path merges body"
+      )
+
+  (is (= (path [] (n/validate [] {"title" string?}))
+         '{:validate {"title" string?}})
+      "Validate")
+
+
 
   (testing "Destructuring in `let`"
 
@@ -134,8 +192,8 @@
                               f (fn [a] (+ a x))
                               g #(+ % x)
                               x 2]
-                          [(f "a") (g "a")]))
-               '[(+ "a" 1) (+ "a" 1)])
+                          [(f x) (g x) (g (f x))]))
+               '[(+ 2 1) (+ 2 1) (+ 2 1 1)])
             "`let` inside expand")
 
         (is (= (f/let [x 1

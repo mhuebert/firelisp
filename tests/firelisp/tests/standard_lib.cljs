@@ -142,19 +142,17 @@
                                   x 11
                                   y (+ x 12)]
                               (+ x y)))
-             "(11 + (11 + 12))")
+             "(11 + 11 + 12)")
           "multiple let bindings expand to nested lets"))
     (testing "f/let"
 
       (is (= (f/let [a-str "hello"
                      a-fn (fn [n] (+ n 1))
-                     a-fn* #(+ % 1)
-                     a-macro (macro [n a-str] (into [] (take 3 (repeat a-str))))]
+                     a-fn* #(+ % 1)]
                (compile-expr '[a-str
                                (a-fn 2)
-                               (a-fn* 2)
-                               (a-macro 3 "q")]))
-             "['hello', (2 + 1), (2 + 1), ['q', 'q', 'q']]")
+                               (a-fn* 2)]))
+             "['hello', (2 + 1), (2 + 1)]")
           "f/let with string, (fn..), #(..), (macro ..)")
 
       (is (true? (f/let [x (fn [y] (+ 0 y))
@@ -183,11 +181,10 @@
       (= (expand expr) s)
 
       '(get next-data "users") '(child next-data "users")
-      '(get next-data "users" "default")
 
-      '(if (exists? (child next-data "users"))
-         (child next-data "users")
-         "default")
+      '(get next-data "users" "default") '(if (exists? (child next-data "users"))
+                                            (child next-data "users")
+                                            "default")
       '(get-in next-data ["address" "zip"])
       '(child next-data "address" "zip")
 
