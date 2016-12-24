@@ -36,38 +36,28 @@
   [f]
   (when (fn? f) f))
 
-(defn expand-simple-1
-  [loc]
-  (walk/prewalk (fn [x]
-                  (let [op (and (seq? x) (some-> (first x) (resolve-sym) (as-fn)))
-                        replacement (when op (apply op (rest x)))]
-                    (if (and op (not= replacement x))
-                      replacement
-                      x))) loc))
-
-(defn expand-simple
-  [body]
-  (loop [current-expr (w/coll-zip body)
-         count 0]
-    (let [next-expr (expand-simple-1 current-expr)]
-      (when (> count 100) (throw "Expand-fns probably in a loop, iterated 100 times"))
-      (if (= next-expr current-expr)
-        (z/root next-expr)
-        (recur next-expr
-               (inc count))))))
+(defn as-sym
+  [f]
+  (when (symbol? f) f))
 
 (defn resolve-expr
   [expr]
   (cond (symbol? expr)
-        (or
-          (get-in *defs* [(paths/munge-sym expr) :value])
-          (get-in *context* [:bindings (paths/munge-sym expr)])
-          expr)
+        (get-in *context* [:bindings (paths/munge-sym expr)] expr)
+
 
         (and (seq? expr) (fn? (first expr)))
         (apply (first expr) (rest expr))
 
+        (fn? expr)
+        (expr)
+
         :else expr))
+
+;; more controlled: if we can't resolve a symbol locally, unquote it?
+;; standardize: macros get unevaluated args, functions don't
+;; better handle on when functions capture their context. inline fns behave different than others.
+
 
 (declare resolve-form*)
 
@@ -93,39 +83,16 @@
     (or (list? form)
         (seq? form)) (if (= 'let (paths/elide-core (first form)))
                        (apply with-let (rest form))
-                       (let [f (some-> (first form) (resolve-sym) (as-fn))
+                       (let [f (as-fn (or (some-> (first form) (as-sym) (resolve-sym))
+                                          ;; unclear when the above ^^ captures
+                                          ((first form))))
                              new-res (and f (apply f (map resolve-form* (rest form))))]
                          (if (and f (not= form new-res))
                            (resolve-form* new-res)
                            (apply list (map resolve-form* form)))))
     (record? form) (reduce (fn [r x] (conj r (resolve-form* x))) form form)
     (coll? form) (into (empty form) (map resolve-form* form))
-    (fn? form) (form)
     :else (resolve-expr form)))
 
-
-
 (defn resolve-form [form]
-  (do                                                       ;binding [*defs* (atom (assoc @*defs* 'let {:value with-let}))]
-    (resolve-form* form)))
-
-(defn expand-1
-  [form]
-  (walk/postwalk
-    (fn [expr]
-      (if (symbol? expr)
-        (let [value (resolve-sym expr)]
-          (if (fn? value) expr value))
-        expr)) form))
-
-(defn expand
-  [expr]
-  (loop [current-expr expr
-         count 0]
-    (let [next-expr (expand-1 current-expr)]
-      (when (> count 100)
-        (throw "Expand-fns probably in a loop, iterated 100 times"))
-      (if (= next-expr current-expr)
-        next-expr
-        (recur next-expr
-               (inc count))))))
+  (resolve-form* form))

@@ -3,7 +3,7 @@
             [firelisp.core :as f :include-macros true]
             [firelisp.template :refer [t] :include-macros true]
             [firelisp.compile :as compile]
-            [firelisp.next :as n :refer [path authorize validate expand expand-1]]
+            [firelisp.next :as n :refer [path authorize validate expand]]
             [clojure.spec :as s :include-macros true]
             [firelisp.specs :as specs]
             [clojure.walk :as walk])
@@ -11,11 +11,13 @@
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
-(println (expand (let [f (fn [x] (+ x 1))]
-                   (f 10))))
-
-
 (deftest firelisp-next
+
+  (testing "seamless usage of local variables"
+    (let [foo 222
+          f (f/fn [x] (= x 111))]
+      (is (= (expand (f foo))
+             '(= 222 111)))))
 
   (testing "macro expansion"
 
@@ -38,6 +40,11 @@
                      (f 10)))
            '(+ 10 1))
         "Support #(...) and (fn [] ...)")
+
+    (is (= (expand ((macro [x] '(+ ~x 2)) 1))
+           (expand ((fn [x] (+ x 2)) 1))
+           '(+ 1 2))
+        "Inline functions")
 
     (is (= (expand (let [x 10
                          f (fn [y] (+ y x))]

@@ -41,7 +41,7 @@
     (is (=
           (compile (path ["cell"]
                          {:read true}
-                         (path "owner"
+                         (path ["owner"]
                                {:write (= auth.uid next-data)})))
           {"cell" {".read" "true"
                    "owner" {".write" "(auth.uid === newData.val())"}}})))
@@ -190,11 +190,11 @@
                  (db/rules
                    (path []
                          {:write true}
-                         (path "auth-uid"
+                         (path ["auth-uid"]
                                {:validate (= next-data auth.uid)})
-                         (path "number"
+                         (path ["number"]
                                {:validate (number? next-data)})
-                         (path "string"
+                         (path ["string"]
                                {:validate (string? next-data)}))))]
 
       (is (-> (db/set! db "/" {:uid "frank"})
@@ -217,7 +217,7 @@
 
   (testing "Rule composition"
     (path []
-          (is (= (-> (path "/x/y" (add :delete '(= next-data auth.uid)))
+          (is (= (-> (path ["x" "y"] (add :delete '(= next-data auth.uid)))
                    (get-in ["x" "y" :delete]))
                '#{(= next-data auth.uid)}))))
 

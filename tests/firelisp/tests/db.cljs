@@ -27,7 +27,7 @@
       (is (thrown? js/Error
                    (-> db/blank
                        (db/rules
-                         (path "/x" {:read false}))
+                         (path ["x"] {:read false}))
                        (db/read "x"))))
 
       (let [DB (-> db/blank
@@ -46,9 +46,9 @@
 
         (is (false? (db/read? DB "/"))))
 
-      (is (= (path "/x"
+      (is (= (path ["x"]
                    {:read (= auth.uid "herman")})
-             (path "/x"
+             (path ["x"]
                    {:read (= auth.uid "herman")})))
 
       (is (-> db/blank

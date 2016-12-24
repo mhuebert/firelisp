@@ -3,7 +3,8 @@
 (ns firelisp.compile
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
-            [firelisp.env :refer [*defs* *context* terminal-defs resolve-sym]])
+            [firelisp.next :as n :include-macros true]
+            [firelisp.env :as env :refer [ *context* terminal-defs resolve-sym]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
 (defn wrap [s]
@@ -200,11 +201,11 @@
   "Bind symbols to values"
   [bindings body]
   (loop [pairs (partition 2 (:args bindings))
-         context *context*]
+         context env/*context*]
     (if (empty? pairs)
-      (binding [*context* context] (emit body))
+      (binding [env/*context* context] (emit body))
       (recur (rest pairs)
-             (binding [*context* context]
+             (binding [env/*context* context]
                (update context :bindings assoc (get (ffirst pairs) :value) (emit (second (first pairs)))))))))
 
 (defmethod emit :vector
@@ -213,7 +214,7 @@
 
 (defmethod emit :list
   [{:keys [as-snapshot? operator args] :as n}]
-  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator firelisp.env/*context*))
+  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator env/*context*))
          (update args 0 assoc :list-as-snapshot? as-snapshot?)))
 
 (defn atom-type [form]
@@ -244,7 +245,7 @@
     (:string
       :keyword) (str "'" (name value) "'")
     :boolean (str value)
-    :symbol (get-in *context* [:bindings value] (str value))
+    :symbol (or (some-> (env/resolve-sym value) str) (throw (js/Error. (str "Symbol not defined: " value)))) #_(get-in env/*context* [:bindings value] (str value))
     :snapshot (cond->
                 (try (case mode
                        :read (case value
@@ -259,7 +260,7 @@
                                 next-data "newData"
                                 prev-root "root"
                                 next-root (str "newData"
-                                               (apply str (take (count (:path *context*))
+                                               (apply str (take (count (:path env/*context*))
                                                                 (repeat ".parent()"))))))
                      (catch js/Error e
                        (prn (str "Invalid data reference for rule type: " mode ", " value))
@@ -303,7 +304,7 @@
 (def ^:dynamic *mode* :write)
 
 (defn expand-1
-  ([form] (expand-1 @*defs* form))
+  ([form] (expand-1 @env/*defs* form))
   ([defs form]
    (walk/postwalk
      (fn [expr]
@@ -319,7 +320,7 @@
   [expr]
   (loop [current-expr expr
          count 0]
-    (let [next-expr (expand-1 @*defs* current-expr)]
+    (let [next-expr (expand-1 @env/*defs* current-expr)]
          (when (> count 100)
            (throw "Expand-fns probably in a loop, iterated 100 times"))
          (if (= next-expr current-expr)
@@ -333,6 +334,6 @@
    (let [opts (merge {:mode         *mode*
                       :as-snapshot? false} opts)]
         (->> expr
-             (expand)
+             (n/resolve-form)
              (node opts)
              (emit)))))
