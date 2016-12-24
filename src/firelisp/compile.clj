@@ -4,8 +4,8 @@
             [clojure.spec :as s :include-macros true]))
 
 (defmacro defop [& body]
-  (let [{:keys [name] :as conf} (s/conform :cljs.core/defn-args body)
-        new-args (s/unform :cljs.core/fn-args conf)]
+  (let [{:keys [name] :as conf} (s/conform :firelisp.specs/defn-args body)
+        new-args (s/unform :firelisp.specs/fn-args (dissoc conf :docstring))]
     (t (swap! firelisp.env/terminal-defs assoc (quote ~name)
               ~(assoc (conf-meta conf)
                  :value (t ~(cons 'cljs.core/fn new-args))

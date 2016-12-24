@@ -5,7 +5,9 @@
             [firelisp.post-zip :as w]
             [clojure.zip :as z]
             [firelisp.env :as env :refer [*defs* *context* resolve-sym]]
-            [clojure.string :as string])
+            [firelisp.specs :as specs]
+            [clojure.string :as string]
+            [cljs.spec :as s])
   (:require-macros [firelisp.next]))
 
 (defn collect-path [loc]
@@ -51,7 +53,7 @@
         (apply (first expr) (rest expr))
 
         (fn? expr)
-        (expr)
+        expr
 
         :else expr))
 
@@ -65,7 +67,9 @@
 (defn let-context
   "Returns context as modified by a `let` form"
   [bindings]
-  (loop [pairs (partition 2 bindings)
+  (loop [pairs (partition 2 (mapcat (fn [[name value]] (-> (s/conform :firelisp.specs/binding-form name)
+                                                           (specs/destructure-arg)
+                                                           (specs/binding-assignments value))) (partition 2 bindings)))
          context *context*]
     (if (empty? pairs)
       context
@@ -82,9 +86,11 @@
   [form]
   (cond
     (or (list? form)
-        (seq? form)) (let [{:keys [type value]} (some-> (first form) (as-sym) (env/resolve-var))
+        (seq? form)) (let [op (resolve-form* (first form))
+                           {:keys [type value]} (if (fn? op)
+                                                  {:value op}
+                                                  (some-> (first form) (as-sym) (env/resolve-var)))
                            f (when (and (not= type :terminal-op) (fn? value)) value)
-                           ;_ (println :resolve-op (first form) type (boolean value) (boolean f) (some-> f (aget "fire$type")))
                            new-res (and f (case (or (aget f "fire$type") type)
                                             :fn (apply f (map resolve-form* (rest form)))
                                             :macro (apply f (rest form))

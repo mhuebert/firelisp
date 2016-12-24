@@ -14,6 +14,16 @@
             [cljs.spec :as s])
   (:require-macros [firelisp.core :as f]))
 
+(defn make-fn [body]
+  (let [conf (s/conform :firelisp.specs/fn-args body)
+        bindings (:bindings firelisp.env/*context*)]
+    (doto (core/fn [& args]
+            (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings)]
+              (let [{body :body arg-entry :args} (specs/get-entry conf (count args))]
+                (n/resolve-form* (t (let ~(specs/merge-bindings arg-entry args)
+                                      ~@body))))))
+      (aset "fire$type" :fn))))
+
 (defn flatten-nested [sym & [docstring]]
   {:name      sym
    :docstring docstring
@@ -169,6 +179,14 @@
    (if (exists? (child data-snapshot attr))
      (child data-snapshot attr)
      not-found)))
+#_(f/defmacro get
+    "Returns the child of a data object, not-found or nil if key not present."
+    ([data-snapshot attr]
+     '(child ~data-snapshot ~attr))
+    ([data-snapshot attr not-found]
+     '(if (exists? (child ~data-snapshot ~attr))
+        (child ~data-snapshot ~attr)
+        ~not-found)))
 
 #_(f/defmacro *context* []
     firelisp.env/*context*)
@@ -196,18 +214,16 @@
         (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
                                               [(rest bindings) body])))))
 
-#_(f/defmacro fn
-    [& body]
-    (println :fn (specs/parse-fn-args specs/fn-wrap body))
-    '(let [])
-    (cons 'fn body))
 
-(f/defmacro fn_
+
+(f/defmacro fn
   "Returns a FireLisp function"
   [& body]
-  (let [conf (s/conform ::core/fn-args body)]
-    (core/fn [& args]
-      (println :conf conf))))
+  (make-fn body))
+
+(f/defmacro fn*
+  [& body]
+  (t (fn ~@body)))
 
 (f/defmacro fn_* [& args]
   '(fn ~@args))

@@ -48,8 +48,7 @@
          (aset "fire$type" type#)))))
 
 (core/defmacro macro [& body]
-  (t (doto (firelisp.core/bind-anon-fn :macro firelisp.core/macro* ~body)
-       (aset "fire$fresh" true))))
+  (t (firelisp.core/bind-anon-fn :macro firelisp.core/macro* ~body)))
 
 (core/defmacro defmacro [& body]
   (t
@@ -58,11 +57,11 @@
 
 (core/defmacro fn* [body]
   (assoc (specs/parse-fn-args specs/fn-wrap body)
+    :value (t (firelisp.standard-lib/make-fn (quote ~body)))
     :type :fn))
 
 (core/defmacro fn [& body]
-  (t (doto (firelisp.core/bind-anon-fn :fn firelisp.core/fn* ~body)
-       (aset "fire$fresh" true))))
+  (t (firelisp.core/bind-anon-fn :fn firelisp.core/fn* ~body)))
 
 (core/defmacro defn [& body]
   (t (let [{name# :name :as fn#} (firelisp.core/fn* ~body)]

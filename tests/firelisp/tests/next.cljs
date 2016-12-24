@@ -11,25 +11,63 @@
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
-(deftest xyz
+
+(deftest scratch
+
+
+  )
+
+(deftest firelisp-next
+
+  (testing "Destructuring in `let`"
+
+    (is (= (expand (let [a 1] a))
+           1))
+    (is (= (expand (let [{{a :all} :acrobats} next-data]
+                     a))
+           '(child next-data "acrobats" "all"))))
+
   (testing "Function parsing"
 
-    (is (= nil (expand (fn_ ([x] (+ x 1))
-                            ([x y] (+ x y 1))
-                            ([x y & z] (+ x y (cons + z) 1))))))
 
-    (is (= nil (expand (fn_ [x] (+ x 1)))))
+    (is (= (expand (let [q 4
+                         f (fn ([x] (+ x 2))
+                             ([x y] (+ x y 3))
+                             ([x y z] (+ x y z q)))]
+                     [(f 1)
+                      (f 1 2)
+                      (f 1 2 3)]))
+           '[(+ 1 2)
+             (+ 1 2 3)
+             (+ 1 2 3 4)])
+        "Multiple-arity function")
 
-    ))
+    (is (= (expand ((fn [x] (+ 1 x)) 10)))
+        "Inline function")
 
-#_(deftest firelisp-next
+    (is (= (expand ((fn [{:keys [title]}] title) next-data))
+           '(child next-data "title")))
+
+    (is (= (specs/destructure-arglist (s/conform :firelisp.specs/arg-list '[{[a b :as c]       :c
+                                                                             {:keys [d] :as e} :e
+                                                                             {g :g :as f}      :f}
+                                                                            h
+                                                                            [i j :as k]]))
+           '([{:name a, :path [:c 0]}
+              {:name b, :path [:c 1]}
+              {:name c, :path [:c]}
+              {:name d, :path [:e :d]}
+              {:name e, :path [:e]}
+              {:name g, :path [:f :g]}
+              {:name f, :path [:f]}]
+              [{:name h, :path []}]
+              [{:name i, :path [0]} {:name j, :path [1]} {:name k, :path []}]))
+        "Args lists are destructured to lists of bindings")
+
+    )
 
   (testing "fns are passed evaluated arguments, macros are not.")
 
-  ; 1. mark defs as macros or defs
-  ; 2. look this info up when we use them in `expand`
-  ; 3. adjust behaviour appropriately
-  ; 4. `let` can be 'just' a macro
 
   #_(testing "seamless usage of local variables"
       (let [foo 222
@@ -38,9 +76,6 @@
                '(= 222 111)))))
 
   (testing "function/macro definition"
-
-    (is (true? (aget (f/fn [x]) "fire$fresh"))
-        "Notice 'fresh' functions")
 
     (is (and (= :fn (aget (f/fn [x]) "fire$type"))
              (= :macro (aget (f/macro [x]) "fire$type")))
@@ -69,8 +104,7 @@
              '(+ 10 1))
           "Support #(...) and (fn [] ...)")
 
-      (is (= (expand ((macro [x] '(+ ~x 2)) 1))
-             (expand ((fn [x] (+ x 2)) 1))
+      (is (= (expand ((fn [x] (+ x 2)) 1))
              '(+ 1 2))
           "Inline functions")
 
@@ -92,14 +126,6 @@
                (+ 1 0)
                (- (+ 1 0))])
           "Functions can call each other")
-
-      (is (= (f/let [macro-a (macro [n a-str] (into [] (take n (repeat a-str))))]
-               (expand '(let [macro-b (macro [n a-str] (into [] (take n (repeat a-str))))]
-                          [(macro-a 1 "a")
-                           (macro-b 2 "b")
-                           ])))
-             '[["a"] ["b" "b"]])
-          "Anonymous macros")
 
       (testing "Anonymous function closes over its context"
 
