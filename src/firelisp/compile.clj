@@ -8,4 +8,5 @@
         new-args (s/unform :cljs.core/fn-args conf)]
     (t (swap! firelisp.env/terminal-defs assoc (quote ~name)
               ~(assoc (conf-meta conf)
-                 :value (t ~(cons 'cljs.core/fn new-args)))))))
+                 :value (t ~(cons 'cljs.core/fn new-args))
+                 :type :terminal-op)))))

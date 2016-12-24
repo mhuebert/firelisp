@@ -10,6 +10,8 @@
 (defonce ^:dynamic *defs* (atom {}))
 (defonce terminal-defs (atom {}))
 
+(defn log [& args] (apply println args) (last args))
+
 (def static-symbols
   ;; docs for builtin symbols
   {:sources/firebase-docs "https://firebase.google.com/docs/reference/security/database/"
@@ -55,21 +57,25 @@
                            :docstring "Tells the Firebase Realtime Database servers to index specific keys in your data to improve the performance of your queries."}
    })
 
-(defn static-sym [sym]
-  (when (or (get-in static-symbols (string/split (str sym) "."))
-            (contains? @terminal-defs sym))
-    sym))
+(defn terminal-var [sym]
+  (get @terminal-defs sym))
 
-(defn path-var [sym]
-  (let [s (str sym)]
-    (when (and (string/starts-with? s "$") (get-in *context* [:bindings (symbol (subs s 1))] false))
-      sym)))
+(defn static-var [sym]
+  (some->
+    (get-in static-symbols (string/split (str sym) "."))
+    (assoc :name sym
+           :type :static-symbol
+           :value sym)))
 
+(defn resolve-var [sym]
+  (do :resolve-var sym (let [sym (some-> sym paths/elide-core)]
+                         (or
+                           (get-in *context* [:bindings (paths/munge-sym sym)])
+                           (get @*defs* (paths/munge-sym sym))
+                           (static-var sym)
+                           (terminal-var sym)
+                           (throw (js/Error (str "Symbol not found: " sym)))
+                           ))))
 
 (defn resolve-sym [expr]
-  (let [sym (some-> expr paths/elide-core)]
-    (or
-      (static-sym sym)
-      (get-in @*defs* [(paths/munge-sym sym) :value])
-      (get-in *context* [:bindings (paths/munge-sym sym)])
-      (path-var sym))))
+  (get (resolve-var expr) :value))

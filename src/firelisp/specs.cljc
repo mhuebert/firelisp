@@ -82,3 +82,9 @@
 (defn macro-wrap
   [{body :body :as b}]
   (assoc b :body (t [(firelisp.common/with-template-quotes ~@body)])))
+
+(defn get-args [conf n]
+  (case (get-in conf [:bs 0])
+    :arity-n :n
+    :arity-1 (get-in conf [:bs 1 :args :args]))
+  )

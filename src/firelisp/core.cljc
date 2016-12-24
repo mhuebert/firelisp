@@ -36,16 +36,20 @@
                                                             :value ~value})))
 
 (core/defmacro macro* [body]
-  (specs/parse-fn-args specs/macro-wrap body))
+  (assoc (specs/parse-fn-args specs/macro-wrap body)
+    :type :macro))
 
-(core/defmacro bind-anon-fn [constructor body]
-  (t (let [bindings# (:bindings firelisp.env/*context*)]
-       (clojure.core/fn [& args#]
-         (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings#)]
-           (firelisp.next/resolve-form (apply (get (~constructor ~body) :value) args#)))))))
+(core/defmacro bind-anon-fn [type constructor body]
+  (t (let [bindings# (:bindings firelisp.env/*context*)
+           {f# :value type# :type} (~constructor ~body)]
+       (doto (clojure.core/fn [& args#]
+               (binding [firelisp.env/*context* (update firelisp.env/*context* :bindings merge bindings#)]
+                 (firelisp.next/resolve-form (apply f# args#))))
+         (aset "fire$type" type#)))))
 
 (core/defmacro macro [& body]
-  (t (firelisp.core/bind-anon-fn firelisp.core/macro* ~body)))
+  (t (doto (firelisp.core/bind-anon-fn :macro firelisp.core/macro* ~body)
+       (aset "fire$fresh" true))))
 
 (core/defmacro defmacro [& body]
   (t
@@ -53,10 +57,12 @@
       (firelisp.core/def* name# macro#))))
 
 (core/defmacro fn* [body]
-  (specs/parse-fn-args specs/fn-wrap body))
+  (assoc (specs/parse-fn-args specs/fn-wrap body)
+    :type :fn))
 
 (core/defmacro fn [& body]
-  (t (firelisp.core/bind-anon-fn firelisp.core/fn* ~body)))
+  (t (doto (firelisp.core/bind-anon-fn :fn firelisp.core/fn* ~body)
+       (aset "fire$fresh" true))))
 
 (core/defmacro defn [& body]
   (t (let [{name# :name :as fn#} (firelisp.core/fn* ~body)]

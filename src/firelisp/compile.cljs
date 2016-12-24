@@ -4,7 +4,7 @@
   (:require [clojure.string :as string]
             [clojure.walk :as walk]
             [firelisp.next :as n :include-macros true]
-            [firelisp.env :as env :refer [ *context* terminal-defs resolve-sym]])
+            [firelisp.env :as env :refer [*context* terminal-defs resolve-sym]])
   (:require-macros [firelisp.compile :refer [defop]]))
 
 (defn wrap [s]
@@ -197,16 +197,16 @@
   [string]
   (str (emit string) ".length"))
 
-(defop let
-  "Bind symbols to values"
-  [bindings body]
-  (loop [pairs (partition 2 (:args bindings))
-         context env/*context*]
-    (if (empty? pairs)
-      (binding [env/*context* context] (emit body))
-      (recur (rest pairs)
-             (binding [env/*context* context]
-               (update context :bindings assoc (get (ffirst pairs) :value) (emit (second (first pairs)))))))))
+#_(defop let
+    "Bind symbols to values"
+    [bindings body]
+    (loop [pairs (partition 2 (:args bindings))
+           context env/*context*]
+      (if (empty? pairs)
+        (binding [env/*context* context] (emit body))
+        (recur (rest pairs)
+               (binding [env/*context* context]
+                 (update context :bindings assoc (get (ffirst pairs) :value) (emit (second (first pairs)))))))))
 
 (defmethod emit :vector
   [{:keys [args]}]
@@ -214,10 +214,11 @@
 
 (defmethod emit :list
   [{:keys [as-snapshot? operator args] :as n}]
-  (apply (get-in @terminal-defs [operator :value] #(println "Operator not found: " operator env/*context*))
+  (apply (get-in @terminal-defs [operator :value] #(throw (js/Error (str "Operator not found: " operator env/*context*))))
          (update args 0 assoc :list-as-snapshot? as-snapshot?)))
 
 (defn atom-type [form]
+
   (case form
     (data
       next-data
@@ -228,7 +229,7 @@
     nil :nil
     (= form 'now) :timestamp
     (cond (number? form) :number
-          (symbol? form) :symbol
+          (symbol? form) (if (string/starts-with? (str form) "$") :path-variable :symbol)
           (string? form) :string
           (regexp? form) :regexp
           (boolean? form) :boolean
@@ -245,7 +246,8 @@
     (:string
       :keyword) (str "'" (name value) "'")
     :boolean (str value)
-    :symbol (or (some-> (env/resolve-sym value) str) (throw (js/Error. (str "Symbol not defined: " value)))) #_(get-in env/*context* [:bindings value] (str value))
+    :path-variable (str value)
+    :symbol (some-> (env/resolve-sym value) str)
     :snapshot (cond->
                 (try (case mode
                        :read (case value
@@ -321,19 +323,19 @@
   (loop [current-expr expr
          count 0]
     (let [next-expr (expand-1 @env/*defs* current-expr)]
-         (when (> count 100)
-           (throw "Expand-fns probably in a loop, iterated 100 times"))
-         (if (= next-expr current-expr)
-           next-expr
-           (recur next-expr
-                  (inc count))))))
+      (when (> count 100)
+        (throw "Expand-fns probably in a loop, iterated 100 times"))
+      (if (= next-expr current-expr)
+        next-expr
+        (recur next-expr
+               (inc count))))))
 
 (defn compile-expr
   ([expr] (compile-expr {} expr))
   ([opts expr]
    (let [opts (merge {:mode         *mode*
                       :as-snapshot? false} opts)]
-        (->> expr
-             (n/resolve-form)
-             (node opts)
-             (emit)))))
+     (->> expr
+          (n/resolve-form)
+          (node opts)
+          (emit)))))

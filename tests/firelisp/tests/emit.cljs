@@ -8,6 +8,8 @@
   (:require-macros
     [cljs.test :refer [is are testing]]))
 
+
+
 (deftest built-ins
 
   (testing "Throw error if symbol does not exist"
@@ -151,11 +153,11 @@
     (path ["x"]
           (are [form expanded]
             (= (expand form) expanded)
-            '(and x y (and z (and p q r (or 1 2 (or 3 4)))))
+            (and x y (and z (and p q r (or 1 2 (or 3 4)))))
             '(and x y z p q r (or 1 2 3 4))
 
-            '(= (get next-data "x") 1)
+            (= (get next-data "x") 1)
             '(= (child next-data "x") 1)
 
-            '(= next-root 1)
+            (= next-root 1)
             '(= next-root 1)))))

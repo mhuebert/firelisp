@@ -96,4 +96,6 @@
         (update :path into segments)
         (update :bindings merge (reduce (fn [m k]
                                           (cond-> m
-                                                  (symbol? k) (assoc k (symbol (str "$" k))))) {} path)))))
+                                                  (symbol? k) (assoc k {:name  k
+                                                                        :value (symbol (str "$" k))
+                                                                        :type  :path-variable}))) {} path)))))

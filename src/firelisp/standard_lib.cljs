@@ -8,8 +8,10 @@
             [firelisp.specs :as specs]
             [clojure.walk]
             [clojure.set :refer [subset?]]
-            [firelisp.env :refer [*defs* *rules* *context*]]
-            [firelisp.paths :as paths])
+            [firelisp.next :as n]
+            [firelisp.env :as env :refer [*defs* *rules* *context*]]
+            [firelisp.paths :as paths]
+            [cljs.spec :as s])
   (:require-macros [firelisp.core :as f]))
 
 (defn flatten-nested [sym & [docstring]]
@@ -25,7 +27,8 @@
                                       (= sym (ffirst remaining)))
                                (concat result (rest (first remaining)))
                                (append result (first remaining)))
-                             (rest remaining))))))})
+                             (rest remaining))))))
+   :type      :macro})
 
 (defn flatten-child [& args]
   {:name      'flatten-child
@@ -167,8 +170,8 @@
      (child data-snapshot attr)
      not-found)))
 
-(f/defmacro *context* []
-  firelisp.env/*context*)
+#_(f/defmacro *context* []
+    firelisp.env/*context*)
 
 #_(f/defmacro let
     "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
@@ -185,20 +188,35 @@
 
 
 #_(f/defmacro let
-  "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
-  [bindings body]
-  (loop [[bindings body] [(partition 2 bindings) body]]
-    (if (empty? bindings)
-      body
-      (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
-                                            [(rest bindings) body])))))
+    "Evaluates body in a lexical context in which the symbols in the binding-forms are bound to their respective init-exprs."
+    [bindings body]
+    (loop [[bindings body] [(partition 2 bindings) body]]
+      (if (empty? bindings)
+        body
+        (recur (clojure.walk/postwalk-replace (apply hash-map (first bindings))
+                                              [(rest bindings) body])))))
 
- #_(f/defmacro fn
+#_(f/defmacro fn
+    [& body]
+    (println :fn (specs/parse-fn-args specs/fn-wrap body))
+    '(let [])
+    (cons 'fn body))
+
+(f/defmacro fn_
+  "Returns a FireLisp function"
   [& body]
-  (println :fn (specs/parse-fn-args specs/fn-wrap body))
-  '(let [])
-  (cons 'fn body))
+  (let [conf (s/conform ::core/fn-args body)]
+    (core/fn [& args]
+      (println :conf conf))))
 
+(f/defmacro fn_* [& args]
+  '(fn ~@args))
+
+(f/defmacro let
+  "Bind symbols to values"
+  [bindings body]
+  (binding [env/*context* (n/let-context bindings)]
+    (n/resolve-form* body)))
 
 (defn add [type rule]
   (swap! *rules* update-in (conj (:path *context*) type) (fnil (if (#{:index :children} type)

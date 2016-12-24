@@ -11,13 +11,40 @@
     [firelisp.tests.util :refer [throws]]
     [cljs.test :refer [is are testing async]]))
 
-(deftest firelisp-next
+(deftest xyz
+  (testing "Function parsing"
 
-  (testing "seamless usage of local variables"
-    (let [foo 222
-          f (f/fn [x] (= x 111))]
-      (is (= (expand (f foo))
-             '(= 222 111)))))
+    (is (= nil (expand (fn_ ([x] (+ x 1))
+                            ([x y] (+ x y 1))
+                            ([x y & z] (+ x y (cons + z) 1))))))
+
+    (is (= nil (expand (fn_ [x] (+ x 1)))))
+
+    ))
+
+#_(deftest firelisp-next
+
+  (testing "fns are passed evaluated arguments, macros are not.")
+
+  ; 1. mark defs as macros or defs
+  ; 2. look this info up when we use them in `expand`
+  ; 3. adjust behaviour appropriately
+  ; 4. `let` can be 'just' a macro
+
+  #_(testing "seamless usage of local variables"
+      (let [foo 222
+            f (f/fn [x] (= x 111))]
+        (is (= (expand (f foo))
+               '(= 222 111)))))
+
+  (testing "function/macro definition"
+
+    (is (true? (aget (f/fn [x]) "fire$fresh"))
+        "Notice 'fresh' functions")
+
+    (is (and (= :fn (aget (f/fn [x]) "fire$type"))
+             (= :macro (aget (f/macro [x]) "fire$type")))
+        "Indicate function or macro"))
 
   (testing "macro expansion"
 
@@ -32,92 +59,93 @@
            '(= true (= y 10)))
         "expand macros top-down"))
 
-  (testing "anonymous functions"
+  (do
+    (testing "anonymous functions"
 
-    (is (= (expand (let [f (fn [x] (+ x 1))]
-                     (f 10)))
-           (expand (let [f #(+ % 1)]
-                     (f 10)))
-           '(+ 10 1))
-        "Support #(...) and (fn [] ...)")
+      (is (= (expand (let [f (fn [x] (+ x 1))]
+                       (f 10)))
+             (expand (let [f #(+ % 1)]
+                       (f 10)))
+             '(+ 10 1))
+          "Support #(...) and (fn [] ...)")
 
-    (is (= (expand ((macro [x] '(+ ~x 2)) 1))
-           (expand ((fn [x] (+ x 2)) 1))
-           '(+ 1 2))
-        "Inline functions")
+      (is (= (expand ((macro [x] '(+ ~x 2)) 1))
+             (expand ((fn [x] (+ x 2)) 1))
+             '(+ 1 2))
+          "Inline functions")
 
-    (is (= (expand (let [x 10
-                         f (fn [y] (+ y x))]
-                     (f 1)))
-           '(+ 1 10))
-        "Functions can use variables in scope")
+      (is (= (expand (let [x 10
+                           f (fn [y] (+ y x))]
+                       (f 1)))
+             '(+ 1 10))
+          "Functions can use variables in scope")
 
-    (is (= (f/let [x 0
-                   f (fn [a] (+ a x))]
-             (expand (let [x 1
-                           g (fn [b] (f b))
-                           h (fn [n] (- (g n)))]
-                       [(g x)
-                        (f x)
-                        (h x)])))
-           '[(+ 1 0)
-             (+ 1 0)
-             (- (+ 1 0))])
-        "Functions can call each other")
-
-    (is (= (f/let [macro-a (macro [n a-str] (into [] (take n (repeat a-str))))]
-             (expand '(let [macro-b (macro [n a-str] (into [] (take n (repeat a-str))))]
-                        [(macro-a 1 "a")
-                         (macro-b 2 "b")
-                         ])))
-           '[["a"] ["b" "b"]])
-        "Anonymous macros")
-
-    (testing "Anonymous function closes over its context"
-
-
-      (is (= (expand '(let [x 1
-                            f (fn [a] (+ a x))
-                            g #(+ % x)
-                            x 2]
-                        [(f "a") (g "a")]))
-             '[(+ "a" 1) (+ "a" 1)])
-          "`let` inside expand")
-
-      (is (= (f/let [x 1
+      (is (= (f/let [x 0
                      f (fn [a] (+ a x))]
-               (expand '(let [g #(+ % x)
+               (expand (let [x 1
+                             g (fn [b] (f b))
+                             h (fn [n] (- (g n)))]
+                         [(g x)
+                          (f x)
+                          (h x)])))
+             '[(+ 1 0)
+               (+ 1 0)
+               (- (+ 1 0))])
+          "Functions can call each other")
+
+      (is (= (f/let [macro-a (macro [n a-str] (into [] (take n (repeat a-str))))]
+               (expand '(let [macro-b (macro [n a-str] (into [] (take n (repeat a-str))))]
+                          [(macro-a 1 "a")
+                           (macro-b 2 "b")
+                           ])))
+             '[["a"] ["b" "b"]])
+          "Anonymous macros")
+
+      (testing "Anonymous function closes over its context"
+
+
+        (is (= (expand '(let [x 1
+                              f (fn [a] (+ a x))
+                              g #(+ % x)
                               x 2]
-                          [(f "a") (g "a")])))
-             '[(+ "a" 1) (+ "a" 1)])
-          "`let` outside expand")))
+                          [(f "a") (g "a")]))
+               '[(+ "a" 1) (+ "a" 1)])
+            "`let` inside expand")
+
+        (is (= (f/let [x 1
+                       f (fn [a] (+ a x))]
+                 (expand '(let [g #(+ % x)
+                                x 2]
+                            [(f "a") (g "a")])))
+               '[(+ "a" 1) (+ "a" 1)])
+            "`let` outside expand")))
 
 
-  (testing "expand"
-    (is (= (expand (let [x 1] x))
-           1))
+    (testing "expand"
+      (is (= (expand (let [x 1] x))
+             1))
 
-    (is (= (expand (let [x 1 y 2]
-                     [x y]))
-           [1 2]))
+      (is (= (expand (let [x 1 y 2]
+                       [x y]))
+             [1 2]))
 
-    (is (= (expand (let [x 1 x 2]
-                     x))
-           2))
+      (is (= (expand (let [x 1 x 2]
+                       x))
+             2))
 
-    (is (= (expand (let [x 1
-                         x 2
-                         y (+ x 3)]
-                     y))
-           '(+ 2 3)))
+      (is (= (expand (let [x 1
+                           x 2
+                           y (+ x 3)]
+                       y))
+             '(+ 2 3)))
 
-    (is (= (f/let [x 1] (expand x))
-           1))
+      (is (= (f/let [x 1] (expand x))
+             1))
 
-    (is (= (expand (let [f (fn [x] (* x 10))]
-                     (f 1)))
-           '(* 1 10)))
-    )
+      (is (= (expand (let [f (fn [x] (* x 10))]
+                       (f 1)))
+             '(* 1 10)))
+      ))
 
   #_(testing "rules"
 
