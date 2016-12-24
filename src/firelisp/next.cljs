@@ -46,7 +46,10 @@
 (defn resolve-expr
   [expr]
   (cond (symbol? expr)
-        (get-in *context* [:bindings (paths/munge-sym expr) :value] expr)
+        (get-in *context* [:bindings (paths/munge-sym expr) :value]
+                (if (env/resolve-var expr)
+                  expr
+                  (throw (js/Error (str "Symbol not found: " expr)))))
 
 
         (and (seq? expr) (fn? (first expr)))

@@ -61,21 +61,29 @@
   (get @terminal-defs sym))
 
 (defn static-var [sym]
-  (some->
-    (get-in static-symbols (string/split (str sym) "."))
-    (assoc :name sym
-           :type :static-symbol
-           :value sym)))
+  (let [segments (string/split (str sym) ".")]
+    (or (some-> segments
+                (get-in static-symbols)
+                (assoc :name sym
+                       :type :static-symbol
+                       :value sym))
+        (when (= "auth" (first segments))
+          {:name      sym
+           :type      :static-symbol
+           :value     sym
+           :docstring "Custom auth variable"}))))
 
 (defn resolve-var [sym]
-  (do :resolve-var sym (let [sym (some-> sym paths/elide-core)]
-                         (or
-                           (get-in *context* [:bindings (paths/munge-sym sym)])
-                           (get @*defs* (paths/munge-sym sym))
-                           (static-var sym)
-                           (terminal-var sym)
-                           (throw (js/Error (str "Symbol not found: " sym)))
-                           ))))
+  (let [sym (some-> sym paths/elide-core)]
+    (or
+      (get-in *context* [:bindings (paths/munge-sym sym)])
+      (get @*defs* (paths/munge-sym sym))
+      (static-var sym)
+      (terminal-var sym)
+      (when (some #{:path-variable :rule-variable} (set (keys (meta sym)))) sym)
+      (do (println :not-found sym *context*)
+          (throw (js/Error (str "Symbol not found: " sym))))
+      )))
 
 (defn resolve-sym [expr]
   (get (resolve-var expr) :value))

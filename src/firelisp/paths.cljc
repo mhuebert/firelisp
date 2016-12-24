@@ -91,9 +91,11 @@
 
 (defn context-with-path
   [ctx path]
-  (let [segments (parse-path path)]
+  (update ctx :path into (parse-path path))
+  #_(let [segments (parse-path path)]
     (-> ctx
         (update :path into segments)
+        ;; depracated this, in favor of `let` assignment
         #_(update :bindings merge (reduce (fn [m k]
                                           (cond-> m
                                                   (symbol? k) (assoc k {:name  k

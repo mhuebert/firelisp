@@ -3,11 +3,16 @@
             [firelisp.paths :as paths]
             [clojure.walk :as walk]))
 
+(defmacro rules
+  "Returns expanded firebase rule. Binds arglist to [prev-data, next-data]."
+  [args body]
+  (t (firelisp.next/expand (let ~(vec (interleave args (map #(with-meta % {:rule-variable true}) ['prev-data 'next-data])))
+                             ~body))))
+
 (defmacro authorize
-  "Returns a map of `authorize` rules. Binds arglist to [prev-data, next-data]."
+  "Returns a map of `authorize` rules. Binds arglist via `rule`."
   [args rule-map]
-  (t (firelisp.next/expand (let ~(vec (interleave args ['prev-data 'next-data]))
-                             ~rule-map))))
+  (t (rules ~args ~rule-map)))
 
 (defmacro validate [bindings rule-map]
   `(authorize ~bindings {:validate ~rule-map}))
@@ -16,7 +21,7 @@
   (let [path-bindings (->> path-segments
                            (reduce (fn [m k]
                                      (cond-> m
-                                             (symbol? k) (assoc k (t (quote ~(symbol (str "$" k))))))) {})
+                                             (symbol? k) (assoc k (t (quote ~(with-meta (symbol (str "$" k)) {:path-variable true})))))) {})
                            (apply concat)
                            vec)]
     `(binding [~'firelisp.env/*context* (paths/context-with-path ~'firelisp.env/*context* (quote ~path-segments))]

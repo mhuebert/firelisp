@@ -3,7 +3,7 @@
             [firelisp.core :as f :include-macros true]
             [firelisp.template :refer [t] :include-macros true]
             [firelisp.compile :as compile]
-            [firelisp.next :as n :refer [path authorize validate expand]]
+            [firelisp.next :as n :refer [path authorize validate rules expand]]
             [clojure.spec :as s :include-macros true]
             [firelisp.specs :as specs]
             [clojure.walk :as walk])
@@ -81,8 +81,9 @@
 
     (is (= (expand (let [a 1] a))
            1))
-    (is (= (expand (let [{{a :all} :acrobats} next-data]
-                     a))
+    (is (= (rules [_ next-data]
+                  (let [{{a :all} :acrobats} next-data]
+                    a))
            '(child next-data "acrobats" "all"))))
 
   (testing "Function parsing"
@@ -103,8 +104,9 @@
     (is (= (expand ((fn [x] (+ 1 x)) 10)))
         "Inline function")
 
-    (is (= (expand ((fn [{:keys [title]}] title) next-data))
-           '(child next-data "title")))
+    (is (= (authorize [_ next-data]
+                      {:write ((fn [{:keys [title]}] title) next-data)})
+           '{:write (child next-data "title")}))
 
     (is (= (specs/destructure-arglist (s/conform :firelisp.specs/arg-list '[{[a b :as c]       :c
                                                                              {:keys [d] :as e} :e
@@ -146,10 +148,10 @@
            {"name" 1})
         "may contain a map")
 
-    (is (= (expand '(-> y
+    (is (= (expand '(-> auth.x
                         (= 10)
                         true?))
-           '(= true (= y 10)))
+           '(= true (= auth.x 10)))
         "expand macros top-down"))
 
   (do
